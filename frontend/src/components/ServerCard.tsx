@@ -180,9 +180,9 @@ export function ServerCard({
                 <div className="spec-item mb-3">
                   <PerformanceBar
                     label="総ストレージ容量"
-                    value={Math.round(totalStorageGb)}
-                    maxValue={maxStorage}
-                    unit=" GB"
+                    value={Math.round(totalStorageGb / 1024 * 10) / 10}
+                    maxValue={maxStorage / 1024}
+                    unit=" TB"
                     color="#48c774"
                     icon=""
                   />

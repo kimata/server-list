@@ -278,9 +278,9 @@ export function MachineDetailPage() {
                   <div className="spec-item mb-4">
                     <PerformanceBar
                       label="総ストレージ容量"
-                      value={Math.round(totalStorageGb)}
-                      maxValue={totalStorageGb * 1.2}
-                      unit=" GB"
+                      value={Math.round(totalStorageGb / 1024 * 10) / 10}
+                      maxValue={totalStorageGb / 1024 * 1.2}
+                      unit=" TB"
                       color="#48c774"
                       icon=""
                     />
