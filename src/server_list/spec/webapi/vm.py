@@ -6,9 +6,27 @@ Endpoint: /server-list/api/vm
 
 from flask import Blueprint, jsonify, request
 
-from server_list.spec.data_collector import get_vm_info, get_all_vm_info_for_host
+from server_list.spec.data_collector import get_vm_info, get_all_vm_info_for_host, is_host_reachable
 
 vm_api = Blueprint("vm_api", __name__)
+
+
+def apply_unknown_power_state_if_unreachable(vm_info: dict | None) -> dict | None:
+    """Apply 'unknown' power_state if the ESXi host is unreachable.
+
+    When ESXi host cannot be contacted, we use cached data but
+    set power_state to 'unknown' to indicate the current state
+    cannot be determined.
+    """
+    if vm_info is None:
+        return None
+
+    esxi_host = vm_info.get("esxi_host")
+    if esxi_host and not is_host_reachable(esxi_host):
+        vm_info = dict(vm_info)  # Make a copy to avoid modifying original
+        vm_info["power_state"] = "unknown"
+
+    return vm_info
 
 
 @vm_api.route("/vm/info", methods=["GET"])
@@ -33,6 +51,8 @@ def get_vm_info_api():
     result = get_vm_info(vm_name, esxi_host)
 
     if result:
+        # Apply unknown power_state if host is unreachable
+        result = apply_unknown_power_state_if_unreachable(result)
         return jsonify({
             "success": True,
             "data": result
@@ -68,6 +88,8 @@ def get_vm_info_batch():
     for vm_name in vm_list:
         result = get_vm_info(vm_name, esxi_host)
         if result:
+            # Apply unknown power_state if host is unreachable
+            result = apply_unknown_power_state_if_unreachable(result)
             results[vm_name] = {
                 "success": True,
                 "data": result
@@ -93,6 +115,14 @@ def get_vms_for_host(esxi_host: str):
         JSON with list of VMs and their info
     """
     vms = get_all_vm_info_for_host(esxi_host)
+
+    # Apply unknown power_state if host is unreachable
+    host_reachable = is_host_reachable(esxi_host)
+    if not host_reachable:
+        vms = [
+            {**vm, "power_state": "unknown"}
+            for vm in vms
+        ]
 
     return jsonify({
         "success": True,

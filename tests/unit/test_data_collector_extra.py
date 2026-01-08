@@ -145,7 +145,7 @@ class TestSaveHostInfoFailed:
             conn.close()
 
             assert row is not None
-            assert row[0] == "stopped"
+            assert row[0] == "unknown"  # ESXi に到達できない場合は unknown
 
 
 class TestGetAllVmInfoForHost:

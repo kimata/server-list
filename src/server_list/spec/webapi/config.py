@@ -10,7 +10,7 @@ For ESXi hosts, VM list is automatically populated from collected data.
 from flask import Blueprint, jsonify
 
 from server_list.spec.cache_manager import get_config, init_db
-from server_list.spec.data_collector import get_all_vm_info_for_host
+from server_list.spec.data_collector import get_all_vm_info_for_host, is_host_reachable
 
 config_api = Blueprint("config_api", __name__)
 
@@ -29,6 +29,9 @@ def enrich_config_with_vm_data(config: dict) -> dict:
 
     For machines running ESXi, automatically populate the VM list
     from collected ESXi data instead of using config.yaml.
+
+    When ESXi host is unreachable, cached data is used but power_state
+    is set to 'unknown' to indicate the current state cannot be determined.
     """
     if "machine" not in config:
         return config
@@ -44,9 +47,15 @@ def enrich_config_with_vm_data(config: dict) -> dict:
             vm_list = get_all_vm_info_for_host(host_name)
 
             if vm_list:
+                # Check if host is reachable to determine power_state handling
+                host_reachable = is_host_reachable(host_name)
+
                 # Convert to config format with additional info
                 machine_copy["vm"] = [
-                    {"name": vm["vm_name"]}
+                    {
+                        "name": vm["vm_name"],
+                        "power_state": vm.get("power_state") if host_reachable else "unknown",
+                    }
                     for vm in vm_list
                 ]
 

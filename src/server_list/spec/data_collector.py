@@ -249,7 +249,11 @@ def save_host_info(host_info: dict):
 
 
 def save_host_info_failed(host: str):
-    """Save failed host info status to SQLite cache."""
+    """Save failed host info status to SQLite cache.
+
+    When ESXi is unreachable, set status to 'unknown' to indicate
+    we cannot determine the actual state.
+    """
     collected_at = datetime.now().isoformat()
 
     with _db_lock, get_db_connection() as conn:
@@ -259,7 +263,7 @@ def save_host_info_failed(host: str):
             INSERT OR REPLACE INTO uptime_info
             (host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, collected_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (host, None, None, "stopped", None, None, collected_at))
+        """, (host, None, None, "unknown", None, None, collected_at))
 
         conn.commit()
 
@@ -275,6 +279,35 @@ def update_fetch_status(esxi_host: str, status: str):
         """, (esxi_host, datetime.now().isoformat(), status))
 
         conn.commit()
+
+
+def get_fetch_status(esxi_host: str) -> dict | None:
+    """Get the fetch status for a host."""
+    with _db_lock, get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT esxi_host, last_fetch, status
+            FROM fetch_status
+            WHERE esxi_host = ?
+        """, (esxi_host,))
+
+        row = cursor.fetchone()
+
+        if row:
+            return {
+                "esxi_host": row[0],
+                "last_fetch": row[1],
+                "status": row[2],
+            }
+
+    return None
+
+
+def is_host_reachable(esxi_host: str) -> bool:
+    """Check if a host was successfully reached in the last fetch."""
+    status = get_fetch_status(esxi_host)
+    return status is not None and status.get("status") == "success"
 
 
 def get_vm_info(vm_name: str, esxi_host: str | None = None) -> dict | None:

@@ -199,7 +199,7 @@ class TestSaveAndGetUptimeInfo:
             result = data_collector.get_uptime_info("test-host")
 
         assert result is not None
-        assert result["status"] == "stopped"
+        assert result["status"] == "unknown"  # ESXi に到達できない場合は unknown
         assert result["boot_time"] is None
 
     def test_get_all_uptime_info(self, temp_data_dir):
