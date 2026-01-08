@@ -31,6 +31,7 @@ from server_list.spec.webapi.cpu import cpu_api
 from server_list.spec.webapi.config import config_api
 from server_list.spec.webapi.vm import vm_api
 from server_list.spec.webapi.uptime import uptime_api
+from server_list.spec import data_collector, cache_manager
 from server_list.spec.data_collector import start_collector, stop_collector
 from server_list.spec.cache_manager import start_cache_worker, stop_cache_worker
 
@@ -72,8 +73,15 @@ def create_app(config: my_lib.webapp.config.WebappConfig) -> flask.Flask:
     def serve_image(filename):
         return flask.send_from_directory(IMG_DIR, filename)
 
-    # Start background workers in the main process only (not in reloader child)
-    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+    # Initialize databases (required for API to work)
+    cache_manager.init_db()
+    data_collector.init_db()
+
+    # Start background workers
+    # - In debug mode with reloader: WERKZEUG_RUN_MAIN == "true" in the main worker process
+    # - In non-debug mode: WERKZEUG_RUN_MAIN is not set
+    werkzeug_run_main = os.environ.get("WERKZEUG_RUN_MAIN")
+    if werkzeug_run_main == "true" or werkzeug_run_main is None:
         start_cache_worker()
         start_collector()
         atexit.register(stop_cache_worker)

@@ -158,8 +158,8 @@ class TestBackgroundWorkers:
             mock_cache.assert_called_once()
             mock_collector.assert_called_once()
 
-    def test_workers_not_start_without_werkzeug_main(self, sample_config):
-        """WERKZEUG_RUN_MAIN=true でない場合はワーカーが起動しない"""
+    def test_workers_start_in_non_debug_mode(self, sample_config):
+        """WERKZEUG_RUN_MAIN が未設定でもワーカーが起動する（非デバッグモード用）"""
         import my_lib.webapp.config
 
         from server_list.cli.webui import create_app
@@ -170,8 +170,10 @@ class TestBackgroundWorkers:
             unittest.mock.patch("server_list.cli.webui.start_cache_worker") as mock_cache,
             unittest.mock.patch("server_list.cli.webui.start_collector") as mock_collector,
             unittest.mock.patch("os.environ.get", return_value=None),
+            unittest.mock.patch("atexit.register"),
         ):
             create_app(webapp_config)
 
-            mock_cache.assert_not_called()
-            mock_collector.assert_not_called()
+            # 非デバッグモードでもワーカーが起動することを確認
+            mock_cache.assert_called_once()
+            mock_collector.assert_called_once()
