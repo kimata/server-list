@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-# ruff: noqa: S101
 """
 E2E テスト用の pytest フィクスチャ
 """
 
 import os
+import shutil
 import subprocess
 import tempfile
-import threading
 import time
+from pathlib import Path
 
 import pytest
 
@@ -44,12 +44,11 @@ def webserver(host, port):
         return
 
     # テスト用の一時ディレクトリを作成
-    temp_dir = tempfile.mkdtemp()
-    config_path = os.path.join(temp_dir, "config.yaml")
+    temp_dir = Path(tempfile.mkdtemp())
+    config_path = temp_dir / "config.yaml"
 
     # 最小限のテスト用設定を作成
-    with open(config_path, "w") as f:
-        f.write("""
+    config_path.write_text("""
 webapp:
   static_dir_path: frontend/dist
   title: Server List (Test)
@@ -66,8 +65,8 @@ machine:
     env = os.environ.copy()
     env["FLASK_DEBUG"] = "0"
 
-    server_process = subprocess.Popen(
-        ["uv", "run", "server-list", "-c", config_path, "-p", str(port)],
+    server_process = subprocess.Popen(  # noqa: S603
+        ["uv", "run", "server-list", "-c", str(config_path), "-p", str(port)],  # noqa: S607
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -86,5 +85,4 @@ machine:
         server_process.kill()
 
     # 一時ディレクトリを削除
-    import shutil
     shutil.rmtree(temp_dir, ignore_errors=True)

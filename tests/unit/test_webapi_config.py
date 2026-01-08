@@ -6,8 +6,6 @@ webapi/config.py のユニットテスト
 
 import unittest.mock
 
-import pytest
-
 
 class TestConfigApi:
     """config API のテスト"""

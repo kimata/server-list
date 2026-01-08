@@ -4,7 +4,6 @@
 cpu_benchmark.py の追加ユニットテスト（100%カバレッジ用）
 """
 
-import re
 import unittest.mock
 
 

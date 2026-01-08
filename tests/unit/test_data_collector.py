@@ -6,10 +6,7 @@ data_collector.py のユニットテスト
 
 import sqlite3
 import unittest.mock
-from datetime import datetime
 from pathlib import Path
-
-import pytest
 
 
 class TestInitDb:
@@ -57,7 +54,6 @@ class TestLoadSecret:
         """シークレットファイルを正しく読み込む"""
         from server_list.spec import data_collector
 
-        secret_path = temp_data_dir / "secret.yaml"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "secret.schema"
 
         with (
@@ -123,8 +119,22 @@ class TestSaveAndGetVmData:
             data_collector.init_db()
 
             vm_data = [
-                {"esxi_host": "test-host", "vm_name": "vm1", "cpu_count": 2, "ram_mb": 4096, "storage_gb": 50.0, "power_state": "poweredOn"},
-                {"esxi_host": "test-host", "vm_name": "vm2", "cpu_count": 4, "ram_mb": 8192, "storage_gb": 100.0, "power_state": "poweredOff"},
+                {
+                    "esxi_host": "test-host",
+                    "vm_name": "vm1",
+                    "cpu_count": 2,
+                    "ram_mb": 4096,
+                    "storage_gb": 50.0,
+                    "power_state": "poweredOn",
+                },
+                {
+                    "esxi_host": "test-host",
+                    "vm_name": "vm2",
+                    "cpu_count": 4,
+                    "ram_mb": 8192,
+                    "storage_gb": 100.0,
+                    "power_state": "poweredOff",
+                },
             ]
 
             data_collector.save_vm_data("test-host", vm_data)

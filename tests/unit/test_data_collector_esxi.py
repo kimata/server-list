@@ -5,10 +5,8 @@ data_collector.py の ESXi 関連ユニットテスト
 """
 
 import unittest.mock
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-
-import pytest
 
 
 class TestConnectToEsxi:
@@ -144,7 +142,7 @@ class TestFetchHostInfo:
         """ホスト情報を取得する"""
         from server_list.spec.data_collector import fetch_host_info
 
-        boot_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        boot_time = datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC)
 
         mock_host = unittest.mock.MagicMock()
         mock_host.runtime.bootTime = boot_time
@@ -194,8 +192,24 @@ class TestCollectAllData:
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
 
         mock_si = unittest.mock.MagicMock()
-        vm_data = [{"esxi_host": "test", "vm_name": "vm1", "cpu_count": 2, "ram_mb": 4096, "storage_gb": 50.0, "power_state": "on"}]
-        host_info = {"host": "test", "boot_time": "2024-01-01", "uptime_seconds": 86400, "status": "running", "cpu_threads": 8, "cpu_cores": 4}
+        vm_data = [
+            {
+                "esxi_host": "test",
+                "vm_name": "vm1",
+                "cpu_count": 2,
+                "ram_mb": 4096,
+                "storage_gb": 50.0,
+                "power_state": "on",
+            }
+        ]
+        host_info = {
+            "host": "test",
+            "boot_time": "2024-01-01",
+            "uptime_seconds": 86400,
+            "status": "running",
+            "cpu_threads": 8,
+            "cpu_cores": 4,
+        }
 
         with (
             unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),

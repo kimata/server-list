@@ -4,10 +4,7 @@
 cache_manager.py の追加ユニットテスト（100%カバレッジ用）
 """
 
-import json
-import threading
 import unittest.mock
-from pathlib import Path
 
 
 class TestGetCacheException:

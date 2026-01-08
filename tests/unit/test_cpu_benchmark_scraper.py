@@ -6,7 +6,6 @@ cpu_benchmark.py のスクレイピング関連ユニットテスト
 
 import unittest.mock
 
-import pytest
 import requests
 
 

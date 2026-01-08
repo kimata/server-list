@@ -6,8 +6,6 @@ cli/webui.py のユニットテスト
 
 import unittest.mock
 
-import pytest
-
 
 class TestCreateApp:
     """create_app 関数のテスト"""
