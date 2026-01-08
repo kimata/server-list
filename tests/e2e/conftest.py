@@ -13,15 +13,40 @@ from pathlib import Path
 import pytest
 
 
+def pytest_addoption(parser):
+    """pytest のコマンドラインオプションを追加"""
+    parser.addoption(
+        "--host",
+        action="store",
+        default=None,
+        help="テストサーバーのホスト",
+    )
+    parser.addoption(
+        "--port",
+        action="store",
+        default=None,
+        type=int,
+        help="テストサーバーのポート",
+    )
+
+
 @pytest.fixture(scope="session")
-def host():
+def host(request):
     """テストサーバーのホスト"""
+    # コマンドライン引数 > 環境変数 > デフォルト値
+    cli_host = request.config.getoption("--host")
+    if cli_host:
+        return cli_host
     return os.environ.get("TEST_HOST", "localhost")
 
 
 @pytest.fixture(scope="session")
-def port():
+def port(request):
     """テストサーバーのポート"""
+    # コマンドライン引数 > 環境変数 > デフォルト値
+    cli_port = request.config.getoption("--port")
+    if cli_port:
+        return cli_port
     return int(os.environ.get("TEST_PORT", "15000"))
 
 
