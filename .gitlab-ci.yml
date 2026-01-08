@@ -67,6 +67,11 @@ build-image:
         - docker buildx create --driver docker-container --name ${BUILDER} --use --config /etc/buildkitd.toml
         - docker buildx use ${BUILDER}
         - docker buildx inspect --bootstrap
+
+        # Calculate frontend hash for cache busting
+        - FRONTEND_HASH=$(find frontend/dist -type f -exec sha256sum {} \; 2>/dev/null | sort | sha256sum | cut -d' ' -f1)
+        - echo "Frontend hash:${FRONTEND_HASH}"
+
         - >
             docker buildx build
             --provenance=false
@@ -77,6 +82,7 @@ build-image:
             --cache-to type=inline
             --cache-to type=registry,ref=${CI_REGISTRY_IMAGE}:cache,mode=max
             --build-arg IMAGE_BUILD_DATE=$(date --iso-8601=seconds)
+            --build-arg FRONTEND_HASH=${FRONTEND_HASH}
             --tag ${CI_REGISTRY_IMAGE}:${TAG}
             --push .
 
