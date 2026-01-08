@@ -33,7 +33,8 @@ function ServerImage({ modelName }: { modelName: string }) {
   );
 }
 
-function parseRam(ram: string): number {
+function parseRam(ram: string | undefined | null): number {
+  if (!ram || typeof ram !== 'string') return 0;
   const match = ram.match(/([\d.]+)\s*(GB|TB|MB)/i);
   if (!match) return 0;
 
@@ -52,7 +53,8 @@ function parseRam(ram: string): number {
   }
 }
 
-function parseStorage(volume: string): number {
+function parseStorage(volume: string | undefined | null): number {
+  if (!volume || typeof volume !== 'string') return 0;
   const match = volume.match(/([\d.]+)\s*(TB|GB|MB)/i);
   if (!match) return 0;
 
@@ -266,12 +268,12 @@ export function MachineDetailPage() {
                   <Link to="/" className="has-text-white-ter">サーバー一覧</Link>
                 </li>
                 <li className="is-active">
-                  <a href="#" className="has-text-white">{machine.name}</a>
+                  <a href="#" className="has-text-white">{String(machine.name ?? '')}</a>
                 </li>
               </ul>
             </nav>
             <h1 className="title is-3">
-              {machine.name}
+              {String(machine.name ?? '')}
             </h1>
             <div className="is-flex is-align-items-center">
               <UptimeDisplay uptimeInfo={uptimeInfo} hostName={machine.name} />
@@ -295,7 +297,7 @@ export function MachineDetailPage() {
                   <span className="tag is-warning">iLO</span>
                 </a>
               )}
-              <span className="tag is-info ml-2">{machine.os}</span>
+              <span className="tag is-info ml-2">{String(machine.os ?? '')}</span>
             </div>
           </div>
         </div>
@@ -313,7 +315,7 @@ export function MachineDetailPage() {
                   <div className="spec-item mb-4">
                     <div className="is-flex is-align-items-center mb-2">
                       <span className="tag is-warning is-light mr-2">CPU</span>
-                      <span className="is-size-6">{machine.cpu}</span>
+                      <span className="is-size-6">{String(machine.cpu ?? '')}</span>
                     </div>
                     {cpuBenchmark?.multi_thread_score && maxCpuScore > 0 && (
                       <PerformanceBar
@@ -380,7 +382,7 @@ export function MachineDetailPage() {
                 <div className="has-text-centered mt-3">
                   <div className="tags has-addons is-justify-content-center">
                     <span className="tag is-dark">モデル</span>
-                    <span className="tag is-light">{machine.mode}</span>
+                    <span className="tag is-light">{String(machine.mode ?? '')}</span>
                   </div>
                 </div>
               </div>

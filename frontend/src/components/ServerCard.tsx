@@ -38,7 +38,8 @@ interface ServerCardProps {
   onClick?: () => void;
 }
 
-function parseRam(ram: string): number {
+function parseRam(ram: string | undefined | null): number {
+  if (!ram || typeof ram !== 'string') return 0;
   const match = ram.match(/([\d.]+)\s*(GB|TB|MB)/i);
   if (!match) return 0;
 
@@ -57,7 +58,8 @@ function parseRam(ram: string): number {
   }
 }
 
-function parseStorage(volume: string): number {
+function parseStorage(volume: string | undefined | null): number {
+  if (!volume || typeof volume !== 'string') return 0;
   const match = volume.match(/([\d.]+)\s*(TB|GB|MB)/i);
   if (!match) return 0;
 
@@ -120,7 +122,7 @@ export function ServerCard({
     >
       <header className="card-header">
         <p className="card-header-title">
-          {machine.name}
+          {String(machine.name ?? '')}
         </p>
         <span className="card-header-icon">
           {machine.esxi && (
@@ -133,7 +135,7 @@ export function ServerCard({
               <span className="tag is-warning">iLO</span>
             </a>
           )}
-          <span className="tag is-primary">{machine.os}</span>
+          <span className="tag is-primary">{String(machine.os ?? '')}</span>
         </span>
       </header>
       <div className="card-content">
@@ -147,7 +149,7 @@ export function ServerCard({
               <div className="is-flex is-align-items-center is-justify-content-space-between mb-3">
                 <div className="tags has-addons mb-0">
                   <span className="tag is-dark">モデル</span>
-                  <span className="tag is-light">{machine.mode}</span>
+                  <span className="tag is-light">{String(machine.mode ?? '')}</span>
                 </div>
                 <UptimeDisplay uptimeInfo={uptimeInfo || null} hostName={machine.name} />
               </div>
@@ -156,7 +158,7 @@ export function ServerCard({
                 <div className="spec-item mb-3">
                   <div className="is-flex is-align-items-center mb-1">
                     <span className="tag is-warning is-light mr-2">CPU</span>
-                    <span className="is-size-7">{machine.cpu}</span>
+                    <span className="is-size-7">{String(machine.cpu ?? '')}</span>
                   </div>
                   {cpuBenchmark?.multi_thread_score && maxCpuScore > 0 && (
                     <PerformanceBar
@@ -220,7 +222,7 @@ export function ServerCard({
                       const tagClass = isPoweredOn ? 'tag is-success is-light' : 'tag is-light';
                       return (
                         <span key={index} className={tagClass}>
-                          {vm.name}
+                          {String(vm.name ?? '')}
                         </span>
                       );
                     })}

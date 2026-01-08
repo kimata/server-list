@@ -26,14 +26,14 @@ export function StorageInfo({ storage }: StorageInfoProps) {
           <div key={index} className="box storage-item">
             <div className="columns is-mobile is-vcentered">
               <div className="column">
-                <p className="has-text-weight-semibold">{disk.name}</p>
+                <p className="has-text-weight-semibold">{String(disk.name ?? '')}</p>
                 <p className="is-size-7 has-text-grey">
-                  📦 モデル: {disk.model}
+                  📦 モデル: {String(disk.model ?? '')}
                 </p>
               </div>
               <div className="column is-narrow">
                 <span className="tag is-info is-medium volume-tag">
-                  {disk.volume}
+                  {String(disk.volume ?? '')}
                 </span>
               </div>
             </div>

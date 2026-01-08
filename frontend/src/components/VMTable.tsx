@@ -261,7 +261,7 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
                     <td>
                       <span className="icon-text">
                         <span className="icon is-small">🔹</span>
-                        <span>{vm.name}</span>
+                        <span>{String(vm.name ?? '')}</span>
                       </span>
                     </td>
                     <td className="has-text-centered">
