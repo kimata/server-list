@@ -29,6 +29,10 @@ class TestConfigApiIntegration:
             unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
             unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
             unittest.mock.patch.object(cache_manager, "CONFIG_PATH", config_path),
+            unittest.mock.patch(
+                "server_list.spec.webapi.config.get_all_vm_info_for_host",
+                return_value=[],
+            ),
         ):
             cache_manager.init_db()
             cache_manager.set_cache("config", sample_config)

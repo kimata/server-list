@@ -12,9 +12,15 @@ class TestConfigApi:
 
     def test_get_config_success(self, client, sample_config):
         """GET /api/config が正常に動作する"""
-        with unittest.mock.patch(
-            "server_list.spec.webapi.config.get_config",
-            return_value=sample_config,
+        with (
+            unittest.mock.patch(
+                "server_list.spec.webapi.config.get_config",
+                return_value=sample_config,
+            ),
+            unittest.mock.patch(
+                "server_list.spec.webapi.config.get_all_vm_info_for_host",
+                return_value=[],
+            ),
         ):
             response = client.get("/server-list/api/config")
 
