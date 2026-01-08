@@ -257,8 +257,8 @@ deploy:
         - kubectl config get-contexts
         - kubectl config use-context kimata/server-list:pod-rollout
 
-        - kubectl -n server-list set image deployment/server-list server-list=${IMAGE}
-        - kubectl -n server-list rollout status deployment/server-list --timeout=300s
+        - kubectl -n panel set image deployment/server-list server-list=${IMAGE}
+        - kubectl -n panel rollout status deployment/server-list --timeout=300s
 
         - 'echo "✓ All deployments updated successfully to $TAG"'
 
