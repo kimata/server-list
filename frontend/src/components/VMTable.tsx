@@ -176,14 +176,18 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
           </span>
         </h4>
         <button
-          className={`button is-small is-light ${refreshing ? 'is-loading' : ''}`}
+          className={`button is-ghost ${refreshing ? 'is-loading' : ''}`}
           onClick={handleRefresh}
           disabled={refreshing}
           title="ESXi から最新データを取得"
+          style={{
+            fontSize: '1.25rem',
+            padding: '0.25rem',
+            height: 'auto',
+            minWidth: 'auto',
+          }}
         >
-          <span className="icon is-small">
-            🔄
-          </span>
+          {!refreshing && '🔄'}
         </button>
       </div>
 
