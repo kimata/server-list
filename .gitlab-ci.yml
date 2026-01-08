@@ -173,7 +173,7 @@ test-webui:
             DOCKER_GATEWAY=$(docker network inspect bridge --format="{{range .IPAM.Config}}{{.Gateway}}{{end}}")
         - >
             timeout 60 bash -c "until curl --fail --connect-timeout 10 --max-time 15
-            \"http://${DOCKER_GATEWAY}:${APP_PORT}/server-list/api/machines\" > /dev/null 2>&1;
+            \"http://${DOCKER_GATEWAY}:${APP_PORT}/server-list/api/config\" > /dev/null 2>&1;
             do echo 'Retrying in 5 seconds...'; sleep 5; done" || ACCESS_FAILED=1
 
         - docker logs ${CI_JOB_NAME}-${CI_JOB_ID} > flask_log.txt
