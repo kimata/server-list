@@ -68,6 +68,7 @@ def get_cpu_benchmarks_batch():
 
     Request body (JSON):
         cpus: List of CPU names to look up
+        fetch: If true, fetch from web if not in cache (optional)
 
     Returns:
         JSON with results for each CPU
@@ -78,6 +79,7 @@ def get_cpu_benchmarks_batch():
         return jsonify({"error": "CPU list is required"}), 400
 
     cpu_list = data["cpus"]
+    should_fetch = data.get("fetch", False)
     results = {}
 
     for cpu_name in cpu_list:
@@ -85,8 +87,23 @@ def get_cpu_benchmarks_batch():
         if result:
             results[cpu_name] = {
                 "success": True,
-                "data": result
+                "data": result,
+                "source": "cache"
             }
+        elif should_fetch:
+            # Fetch from web if not in cache
+            result = fetch_and_save_benchmark(cpu_name)
+            if result:
+                results[cpu_name] = {
+                    "success": True,
+                    "data": result,
+                    "source": "web"
+                }
+            else:
+                results[cpu_name] = {
+                    "success": False,
+                    "data": None
+                }
         else:
             results[cpu_name] = {
                 "success": False,
