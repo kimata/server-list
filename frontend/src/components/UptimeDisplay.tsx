@@ -82,6 +82,17 @@ export function UptimeDisplay({ uptimeInfo }: UptimeDisplayProps) {
     );
   }
 
+  if (uptimeInfo.status === 'unknown') {
+    return (
+      <div className="uptime-display">
+        <span className="tag is-warning is-light">
+          <span className="icon is-small mr-1">❓</span>
+          <span className="is-size-7">状態不明</span>
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="uptime-display">
       <span className="tag is-success is-light">

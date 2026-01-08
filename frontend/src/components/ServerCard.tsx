@@ -77,6 +77,9 @@ function parseStorage(volume: string): number {
 }
 
 function getTotalStorage(machine: Machine): number {
+  if (!machine.storage || !Array.isArray(machine.storage)) {
+    return 0;
+  }
   return machine.storage.reduce((total, disk) => total + parseStorage(disk.volume), 0);
 }
 

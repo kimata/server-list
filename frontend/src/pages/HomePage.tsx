@@ -97,7 +97,7 @@ export function HomePage() {
   };
 
   const { maxCpuScore, maxRam, maxStorage } = useMemo(() => {
-    if (!config) {
+    if (!config || !config.machine || !Array.isArray(config.machine)) {
       return { maxCpuScore: 0, maxRam: 0, maxStorage: 0 };
     }
 

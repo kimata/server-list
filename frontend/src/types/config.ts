@@ -56,7 +56,7 @@ export interface VMInfoResponse {
 export interface UptimeInfo {
   boot_time: string | null;
   uptime_seconds: number | null;
-  status: 'running' | 'stopped';
+  status: 'running' | 'stopped' | 'unknown';
   cpu_threads: number | null;
   cpu_cores: number | null;
   collected_at: string;

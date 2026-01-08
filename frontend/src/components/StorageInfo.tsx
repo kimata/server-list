@@ -5,6 +5,17 @@ interface StorageInfoProps {
 }
 
 export function StorageInfo({ storage }: StorageInfoProps) {
+  if (!storage || !Array.isArray(storage) || storage.length === 0) {
+    return (
+      <div className="storage-info">
+        <h4 className="title is-6">
+          💾 ストレージ
+        </h4>
+        <p className="has-text-grey is-size-7">ストレージ情報がありません</p>
+      </div>
+    );
+  }
+
   return (
     <div className="storage-info">
       <h4 className="title is-6">
