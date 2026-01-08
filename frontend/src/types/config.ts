@@ -6,6 +6,7 @@ export interface Storage {
 
 export interface VirtualMachine {
   name: string;
+  power_state?: string;
 }
 
 export interface Machine {

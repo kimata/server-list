@@ -203,11 +203,15 @@ export function ServerCard({
                   仮想マシン ({machine.vm.length}台)
                 </h4>
                 <div className="tags are-medium">
-                  {machine.vm.slice(0, 5).map((vm, index) => (
-                    <span key={index} className="tag is-success is-light">
-                      {vm.name}
-                    </span>
-                  ))}
+                  {machine.vm.slice(0, 5).map((vm, index) => {
+                    const isPoweredOn = vm.power_state?.includes('poweredOn');
+                    const tagClass = isPoweredOn ? 'tag is-success is-light' : 'tag is-light';
+                    return (
+                      <span key={index} className={tagClass}>
+                        {vm.name}
+                      </span>
+                    );
+                  })}
                   {machine.vm.length > 5 && (
                     <span className="tag is-light">
                       +{machine.vm.length - 5} more
