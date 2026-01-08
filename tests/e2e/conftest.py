@@ -79,11 +79,14 @@ webapp:
   title: Server List (Test)
 machine:
   - name: test-server
-    host: test.example.com
+    mode: Test Server
     os: Linux
     cpu: Intel Core i7-12700K
-    ram_gb: 64
-    storage_gb: 1000
+    ram: 64 GB
+    storage:
+      - name: Main Storage
+        model: Test SSD
+        volume: 1 TB
 """)
 
     # サーバーをバックグラウンドで起動

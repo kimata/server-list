@@ -114,3 +114,18 @@ class TestMachinePageE2E:
         screenshot_path = EVIDENCE_DIR / "e2e_machine_page.png"
         screenshot_path.parent.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(screenshot_path), full_page=True)
+
+    def test_machine_page_no_js_errors(self, page, webserver, base_url):
+        """マシンページで JavaScript エラーがないことを確認"""
+        page.set_viewport_size({"width": 1920, "height": 1080})
+
+        js_errors = []
+        page.on("pageerror", lambda error: js_errors.append(str(error)))
+
+        page.goto(f"{base_url}/machine/test-server", wait_until="domcontentloaded")
+
+        # ページのロード完了を待機
+        page.wait_for_load_state("load")
+
+        # JavaScript エラーがないこと
+        assert len(js_errors) == 0, f"JavaScript エラーが発生しました: {js_errors}"
