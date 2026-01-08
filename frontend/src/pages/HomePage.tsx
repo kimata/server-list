@@ -61,26 +61,35 @@ export function HomePage() {
       });
   }, [fetchUptimeData]);
 
-  const fetchCpuBenchmarks = async (cpuNames: string[]) => {
+  const fetchCpuBenchmarks = async (cpuNames: string[], shouldFetch = false) => {
     try {
       const response = await fetch('/server-list/api/cpu/benchmark/batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ cpus: cpuNames }),
+        body: JSON.stringify({ cpus: cpuNames, fetch: shouldFetch }),
       });
 
       if (response.ok) {
         const data = await response.json();
         const benchmarks: Record<string, CpuBenchmark | null> = {};
+        let hasMissingData = false;
 
         for (const cpu of cpuNames) {
           const result = data.results?.[cpu];
           benchmarks[cpu] = result?.success ? result.data : null;
+          if (!result?.success) {
+            hasMissingData = true;
+          }
         }
 
         setCpuBenchmarks(benchmarks);
+
+        // If some data is missing and we haven't tried fetching yet, retry with fetch=true
+        if (hasMissingData && !shouldFetch) {
+          fetchCpuBenchmarks(cpuNames, true);
+        }
       }
     } catch {
       console.log('CPU benchmark API not available');

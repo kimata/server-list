@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { Config, Machine, CpuBenchmark, UptimeInfo } from '../types/config';
 import { StorageInfo } from '../components/StorageInfo';
@@ -78,8 +78,9 @@ function getTotalStorage(machine: Machine): number {
 export function MachineDetailPage() {
   const { machineName } = useParams<{ machineName: string }>();
   const navigate = useNavigate();
+  const [config, setConfig] = useState<Config | null>(null);
   const [machine, setMachine] = useState<Machine | null>(null);
-  const [cpuBenchmark, setCpuBenchmark] = useState<CpuBenchmark | null>(null);
+  const [cpuBenchmarks, setCpuBenchmarks] = useState<Record<string, CpuBenchmark | null>>({});
   const [uptimeInfo, setUptimeInfo] = useState<UptimeInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -118,9 +119,10 @@ export function MachineDetailPage() {
           throw new Error('Failed to load config');
         }
 
-        const config: Config = await configResponse.json();
+        const configData: Config = await configResponse.json();
+        setConfig(configData);
         const decodedName = decodeURIComponent(machineName || '');
-        const foundMachine = config.machine.find((m) => m.name === decodedName);
+        const foundMachine = configData.machine.find((m) => m.name === decodedName);
 
         if (!foundMachine) {
           setError(`Machine not found: ${decodedName}`);
@@ -130,24 +132,41 @@ export function MachineDetailPage() {
 
         setMachine(foundMachine);
 
-        // Fetch CPU benchmark
-        try {
-          const benchmarkResponse = await fetch('/server-list/api/cpu/benchmark/batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cpus: [foundMachine.cpu] }),
-          });
+        // Fetch CPU benchmarks for all machines
+        const fetchBenchmarks = async (shouldFetch = false) => {
+          try {
+            const cpuNames = configData.machine.map((m) => m.cpu);
+            const benchmarkResponse = await fetch('/server-list/api/cpu/benchmark/batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ cpus: cpuNames, fetch: shouldFetch }),
+            });
 
-          if (benchmarkResponse.ok) {
-            const data = await benchmarkResponse.json();
-            const result = data.results?.[foundMachine.cpu];
-            if (result?.success) {
-              setCpuBenchmark(result.data);
+            if (benchmarkResponse.ok) {
+              const data = await benchmarkResponse.json();
+              const benchmarks: Record<string, CpuBenchmark | null> = {};
+              let hasMissingData = false;
+
+              for (const cpu of cpuNames) {
+                const result = data.results?.[cpu];
+                benchmarks[cpu] = result?.success ? result.data : null;
+                if (!result?.success) {
+                  hasMissingData = true;
+                }
+              }
+
+              setCpuBenchmarks(benchmarks);
+
+              // If some data is missing and we haven't tried fetching yet, retry with fetch=true
+              if (hasMissingData && !shouldFetch) {
+                fetchBenchmarks(true);
+              }
             }
+          } catch {
+            console.log('CPU benchmark API not available');
           }
-        } catch {
-          console.log('CPU benchmark API not available');
-        }
+        };
+        fetchBenchmarks();
 
         // Fetch uptime
         fetchUptimeData();
@@ -192,6 +211,46 @@ export function MachineDetailPage() {
 
   const ramGb = parseRam(machine.ram);
   const totalStorageGb = getTotalStorage(machine);
+  const cpuBenchmark = machine ? cpuBenchmarks[machine.cpu] : null;
+
+  // Calculate max values across all machines (same as HomePage)
+  const { maxCpuScore, maxSingleThreadScore, maxRam, maxStorage } = useMemo(() => {
+    if (!config) {
+      return { maxCpuScore: 0, maxSingleThreadScore: 0, maxRam: 0, maxStorage: 0 };
+    }
+
+    let maxCpu = 0;
+    let maxSingle = 0;
+    let maxRamValue = 0;
+    let maxStorageValue = 0;
+
+    for (const m of config.machine) {
+      const benchmark = cpuBenchmarks[m.cpu];
+      if (benchmark?.multi_thread_score && benchmark.multi_thread_score > maxCpu) {
+        maxCpu = benchmark.multi_thread_score;
+      }
+      if (benchmark?.single_thread_score && benchmark.single_thread_score > maxSingle) {
+        maxSingle = benchmark.single_thread_score;
+      }
+
+      const ram = parseRam(m.ram);
+      if (ram > maxRamValue) {
+        maxRamValue = ram;
+      }
+
+      const storage = getTotalStorage(m);
+      if (storage > maxStorageValue) {
+        maxStorageValue = storage;
+      }
+    }
+
+    return {
+      maxCpuScore: maxCpu,
+      maxSingleThreadScore: maxSingle,
+      maxRam: maxRamValue,
+      maxStorage: maxStorageValue,
+    };
+  }, [config, cpuBenchmarks]);
 
   return (
     <>
@@ -253,12 +312,21 @@ export function MachineDetailPage() {
                       <span className="tag is-warning is-light mr-2">CPU</span>
                       <span className="is-size-6">{machine.cpu}</span>
                     </div>
-                    {cpuBenchmark?.multi_thread_score && (
+                    {cpuBenchmark?.multi_thread_score && maxCpuScore > 0 && (
                       <PerformanceBar
                         label="マルチスレッド性能"
                         value={cpuBenchmark.multi_thread_score}
-                        maxValue={cpuBenchmark.multi_thread_score * 1.2}
+                        maxValue={maxCpuScore}
                         color="#f14668"
+                        icon=""
+                      />
+                    )}
+                    {cpuBenchmark?.single_thread_score && maxSingleThreadScore > 0 && (
+                      <PerformanceBar
+                        label="シングルスレッド性能"
+                        value={cpuBenchmark.single_thread_score}
+                        maxValue={maxSingleThreadScore}
+                        color="#ff7f50"
                         icon=""
                       />
                     )}
@@ -268,7 +336,7 @@ export function MachineDetailPage() {
                     <PerformanceBar
                       label="RAM"
                       value={ramGb}
-                      maxValue={ramGb * 1.2}
+                      maxValue={maxRam}
                       unit=" GB"
                       color="#3298dc"
                       icon=""
@@ -279,7 +347,7 @@ export function MachineDetailPage() {
                     <PerformanceBar
                       label="総ストレージ容量"
                       value={Math.round(totalStorageGb / 1024 * 10) / 10}
-                      maxValue={totalStorageGb / 1024 * 1.2}
+                      maxValue={maxStorage / 1024}
                       unit=" TB"
                       color="#48c774"
                       icon=""
