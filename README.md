@@ -4,7 +4,7 @@
 
 [![Test Status](https://github.com/kimata/server-list/actions/workflows/test.yml/badge.svg)](https://github.com/kimata/server-list/actions/workflows/test.yml)
 [![Test Report](https://img.shields.io/badge/Test_Report-pytest.html-blue)](https://kimata.github.io/server-list/pytest.html)
-[![Coverage Report](https://img.shields.io/badge/Coverage-Report-green)](https://kimata.github.io/server-list/coverage/)
+[![Coverage Status](https://coveralls.io/repos/github/kimata/server-list/badge.svg?branch=main)](https://coveralls.io/github/kimata/server-list?branch=main)
 
 ## 📋 目次
 
