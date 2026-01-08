@@ -140,7 +140,7 @@ def search_chart_page(url: str, cpu_name: str) -> tuple[str | None, int | None]:
 
         best_match_name = None
         best_match_score_value = None
-        best_score = 0
+        best_score = 0.0
 
         for entry in entries:
             link = entry.select_one("a")
@@ -188,7 +188,7 @@ def search_cpu_list(cpu_name: str) -> tuple[str | None, int | None]:
 
         best_match_name = None
         best_match_score_value = None
-        best_score = 0
+        best_score = 0.0
 
         for row in tbody.find_all("tr"):
             cells = row.find_all("td")

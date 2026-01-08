@@ -106,7 +106,8 @@ def get_vm_storage_size(vm) -> float:
     try:
         for device in vm.config.hardware.device:
             if isinstance(device, vim.vm.device.VirtualDisk):
-                total_bytes += device.capacityInBytes
+                if device.capacityInBytes is not None:
+                    total_bytes += device.capacityInBytes
     except Exception:
         pass
 
