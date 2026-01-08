@@ -176,7 +176,7 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
           </span>
         </h4>
         <button
-          className={`button is-ghost ${refreshing ? 'is-loading' : ''}`}
+          className={`button ${refreshing ? 'is-loading' : ''}`}
           onClick={handleRefresh}
           disabled={refreshing}
           title="ESXi から最新データを取得"
@@ -185,6 +185,9 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
             padding: '0.25rem',
             height: 'auto',
             minWidth: 'auto',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
           }}
         >
           {!refreshing && '🔄'}
