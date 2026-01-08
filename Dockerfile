@@ -41,10 +41,6 @@ RUN --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
 ARG IMAGE_BUILD_DATE
 ENV IMAGE_BUILD_DATE=${IMAGE_BUILD_DATE}
 
-# ARG for cache busting when frontend changes
-ARG FRONTEND_HASH
-ENV FRONTEND_HASH=${FRONTEND_HASH}
-
 COPY --chown=ubuntu:ubuntu . .
 
 RUN mkdir -p data
