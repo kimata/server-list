@@ -73,15 +73,6 @@ def create_app(config: my_lib.webapp.config.WebappConfig) -> flask.Flask:
     def serve_image(filename):
         return flask.send_from_directory(IMG_DIR, filename)
 
-    # Disable caching for API responses
-    @app.after_request
-    def add_no_cache_headers(response):
-        if "/api/" in flask.request.path and "/api/img/" not in flask.request.path:
-            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-            response.headers["Pragma"] = "no-cache"
-            response.headers["Expires"] = "0"
-        return response
-
     # Initialize databases (required for API to work)
     cache_manager.init_db()
     data_collector.init_db()

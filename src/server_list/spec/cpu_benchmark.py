@@ -4,6 +4,7 @@ CPU Benchmark scraper from cpubenchmark.net
 Fetches multi-thread and single-thread performance scores and stores them in SQLite database.
 """
 
+import logging
 import re
 import sqlite3
 import time
@@ -74,14 +75,20 @@ def extract_model_number(cpu_name: str) -> str | None:
 def normalize_cpu_name(cpu_name: str) -> str:
     """Normalize CPU name for matching."""
     name = " ".join(cpu_name.split())
+    # Remove clock speed info
     name = re.sub(r"@.*$", "", name).strip()
+    # Remove trademark symbols
+    name = name.replace("(R)", "").replace("(TM)", "").replace("®", "").replace("™", "")
+    # Normalize whitespace again after removing symbols
+    name = " ".join(name.split())
     return name
 
 
 def calculate_match_score(search_name: str, candidate_name: str) -> float:
     """Calculate how well the candidate matches the search name."""
-    search_lower = search_name.lower()
-    candidate_lower = candidate_name.lower()
+    # Normalize both names before comparing
+    search_lower = normalize_cpu_name(search_name).lower()
+    candidate_lower = normalize_cpu_name(candidate_name).lower()
 
     search_model = extract_model_number(search_name)
     candidate_model = extract_model_number(candidate_name)
@@ -263,6 +270,9 @@ def save_benchmark(cpu_name: str, multi_thread: int | None, single_thread: int |
 
 def get_benchmark(cpu_name: str) -> dict | None:
     """Get benchmark data from database."""
+    normalized_name = normalize_cpu_name(cpu_name)
+    logging.debug("Looking up CPU benchmark for: %s (normalized: %s)", cpu_name, normalized_name)
+
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
@@ -276,12 +286,21 @@ def get_benchmark(cpu_name: str) -> dict | None:
         row = cursor.fetchone()
 
         if not row:
-            # Try fuzzy match with LIKE
+            # Try fuzzy match with LIKE using original name
             cursor.execute("""
                 SELECT cpu_name, multi_thread_score, single_thread_score
                 FROM cpu_benchmark
                 WHERE cpu_name LIKE ?
             """, (f"%{cpu_name}%",))
+            row = cursor.fetchone()
+
+        if not row:
+            # Try fuzzy match with LIKE using normalized name
+            cursor.execute("""
+                SELECT cpu_name, multi_thread_score, single_thread_score
+                FROM cpu_benchmark
+                WHERE cpu_name LIKE ?
+            """, (f"%{normalized_name}%",))
             row = cursor.fetchone()
 
         if not row:
@@ -300,12 +319,14 @@ def get_benchmark(cpu_name: str) -> dict | None:
                         break
 
         if row:
+            logging.debug("Found benchmark for %s: multi=%s, single=%s", cpu_name, row[1], row[2])
             return {
                 "cpu_name": row[0],
                 "multi_thread_score": row[1],
                 "single_thread_score": row[2],
             }
 
+    logging.debug("No benchmark found for: %s", cpu_name)
     return None
 
 
@@ -319,9 +340,12 @@ def clear_benchmark(cpu_name: str):
 
 def fetch_and_save_benchmark(cpu_name: str) -> dict | None:
     """Fetch benchmark from web and save to database."""
+    logging.info("Fetching CPU benchmark from web for: %s", cpu_name)
     result = search_cpu_benchmark(cpu_name)
 
     if result:
+        logging.info("Found benchmark for %s: multi=%s, single=%s",
+                     cpu_name, result.get("multi_thread_score"), result.get("single_thread_score"))
         save_benchmark(
             cpu_name,
             result.get("multi_thread_score"),
@@ -329,6 +353,7 @@ def fetch_and_save_benchmark(cpu_name: str) -> dict | None:
         )
         return result
 
+    logging.warning("Could not find benchmark data for: %s", cpu_name)
     return None
 
 
