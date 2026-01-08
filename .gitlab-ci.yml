@@ -60,6 +60,10 @@ build-image:
     script:
         - 'echo "Building: ${CI_REGISTRY_IMAGE}:${TAG}"'
 
+        - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.green-rabbit.net/kimata/panel-config.git
+        - mv panel-config/server-list.yaml config.yaml
+        - mv panel-config/server-list-secret.yaml secret.yaml
+
         - docker buildx create --driver docker-container --name ${BUILDER} --use --config /etc/buildkitd.toml
         - docker buildx use ${BUILDER}
         - docker buildx inspect --bootstrap
@@ -108,13 +112,17 @@ test-typecheck:
           paths:
               - ${UV_CACHE_DIR}
 
-test-unit:
+test-walk-through:
     stage: test
 
     needs:
         - test-prepare
 
     script:
+        - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.green-rabbit.net/kimata/panel-config.git
+        - mv panel-config/server-list.yaml config.yaml
+        - mv panel-config/server-list-secret.yaml secret.yaml
+
         - uv run pytest
 
     cache:
@@ -209,7 +217,7 @@ tag-latest:
         - generate-tag
         - job: test-typecheck
           artifacts: false
-        - job: test-unit
+        - job: test-walk-through
           artifacts: false
         - job: test-webui
           artifacts: false
@@ -232,7 +240,7 @@ deploy:
         - generate-tag
         - job: test-typecheck
           artifacts: false
-        - job: test-unit
+        - job: test-walk-through
           artifacts: false
         - job: test-webui
           artifacts: false
