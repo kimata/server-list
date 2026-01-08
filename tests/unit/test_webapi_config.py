@@ -91,19 +91,57 @@ class TestEnrichConfigWithVmData:
             ]
         }
         vm_list = [
-            {"vm_name": "vm1"},
-            {"vm_name": "vm2"},
+            {"vm_name": "vm1", "power_state": "poweredOn"},
+            {"vm_name": "vm2", "power_state": "poweredOff"},
         ]
 
-        with unittest.mock.patch(
-            "server_list.spec.webapi.config.get_all_vm_info_for_host",
-            return_value=vm_list,
+        with (
+            unittest.mock.patch(
+                "server_list.spec.webapi.config.get_all_vm_info_for_host",
+                return_value=vm_list,
+            ),
+            unittest.mock.patch(
+                "server_list.spec.webapi.config.is_host_reachable",
+                return_value=True,
+            ),
         ):
             result = enrich_config_with_vm_data(config)
 
         assert "vm" in result["machine"][0]
         assert len(result["machine"][0]["vm"]) == 2
         assert result["machine"][0]["vm"][0]["name"] == "vm1"
+        assert result["machine"][0]["vm"][0]["power_state"] == "poweredOn"
+
+    def test_enriches_esxi_host_with_unknown_power_state_when_unreachable(self):
+        """ESXi ホストに到達できない場合、power_state が unknown になる"""
+        from server_list.spec.webapi.config import enrich_config_with_vm_data
+
+        config = {
+            "machine": [
+                {
+                    "name": "esxi-host.example.com",
+                    "os": "ESXi 8.0",
+                }
+            ]
+        }
+        vm_list = [
+            {"vm_name": "vm1", "power_state": "poweredOn"},
+        ]
+
+        with (
+            unittest.mock.patch(
+                "server_list.spec.webapi.config.get_all_vm_info_for_host",
+                return_value=vm_list,
+            ),
+            unittest.mock.patch(
+                "server_list.spec.webapi.config.is_host_reachable",
+                return_value=False,
+            ),
+        ):
+            result = enrich_config_with_vm_data(config)
+
+        assert "vm" in result["machine"][0]
+        assert result["machine"][0]["vm"][0]["power_state"] == "unknown"
 
     def test_no_enrichment_for_non_esxi(self):
         """非ESXi ホストはそのまま"""
