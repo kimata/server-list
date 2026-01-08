@@ -1,13 +1,15 @@
 # server-list
 
-サーバーと仮想マシンの一覧を表示する Web アプリケーション
+🖥️ サーバーと仮想マシンの一覧を表示する Web アプリケーション
 
-[![Test](https://github.com/kimata/server-list/actions/workflows/test.yml/badge.svg)](https://github.com/kimata/server-list/actions/workflows/test.yml)
+[![Test Status](https://github.com/kimata/server-list/actions/workflows/test.yml/badge.svg)](https://github.com/kimata/server-list/actions/workflows/test.yml)
+[![Test Report](https://img.shields.io/badge/Test_Report-pytest.html-blue)](https://kimata.github.io/server-list/pytest.html)
+[![Coverage Report](https://img.shields.io/badge/Coverage-Report-green)](https://kimata.github.io/server-list/coverage/)
 
-## 目次
+## 📋 目次
 
 - [概要](#概要)
-- [システム構成](#システム構成)
+- [システムアーキテクチャ](#システムアーキテクチャ)
 - [セットアップ](#セットアップ)
 - [実行方法](#実行方法)
 - [設定ファイル](#設定ファイル)
@@ -16,49 +18,137 @@
 - [CI/CD](#cicd)
 - [ライセンス](#ライセンス)
 
-## 概要
+## 🎯 概要
 
 ESXi ホスト上の仮想マシン情報をリアルタイムで収集・表示するダッシュボードアプリケーションです。
 
-### 主な機能
+### ✨ 主な機能
 
-- ESXi ホストからの VM 情報自動収集（5分間隔）
-- CPU ベンチマークスコア表示（cpubenchmark.net から取得）
-- システム稼働時間の表示
-- VM の電源状態に応じた表示切り替え
-- サーバーモデル画像の表示
-- 手動データ更新機能
+- 🔄 ESXi ホストからの VM 情報自動収集（5分間隔）
+- 📊 CPU ベンチマークスコア表示（cpubenchmark.net から取得）
+- ⏱️ システム稼働時間の表示
+- 🟢 VM の電源状態に応じた表示切り替え
+- 🖼️ サーバーモデル画像の表示
+- 🔃 手動データ更新機能
 
-## システム構成
+## 🏗️ システムアーキテクチャ
 
-### フロントエンド
+### 全体構成
 
-- **フレームワーク**: React 19
-- **言語**: TypeScript
-- **UI ライブラリ**: Bulma CSS
-- **ビルドツール**: Vite
+```mermaid
+flowchart TB
+    subgraph "📱 フロントエンド"
+        REACT[React 19 + TypeScript]
+        BULMA[Bulma CSS]
+        VITE[Vite]
+        REACT --> BULMA
+        VITE --> REACT
+    end
 
-### バックエンド
+    subgraph "🔧 バックエンド"
+        FLASK[Flask Server<br/>Port:5000]
+        PYVMOMI[pyVmomi<br/>ESXi API]
+        CACHE[(SQLite<br/>キャッシュ)]
+        FLASK --> PYVMOMI
+        FLASK --> CACHE
+    end
 
-- **フレームワーク**: Flask
-- **言語**: Python 3.11+
-- **ESXi 連携**: pyVmomi
-- **データベース**: SQLite（キャッシュ用）
+    subgraph "🖥️ ESXi ホスト"
+        ESXI1[ESXi Server 1]
+        ESXI2[ESXi Server 2]
+        VM1[VM 1]
+        VM2[VM 2]
+        VM3[VM 3]
+        ESXI1 --> VM1
+        ESXI1 --> VM2
+        ESXI2 --> VM3
+    end
 
-### 主要な依存ライブラリ
+    subgraph "🌐 外部サービス"
+        CPUBENCH[cpubenchmark.net<br/>CPU スコア取得]
+    end
 
-- flask, flask-cors
-- pyvmomi（ESXi API）
-- beautifulsoup4（CPU ベンチマークスクレイピング）
-- requests, pyyaml, docopt
+    USR[👤 ユーザー] --> REACT
+    REACT -->|REST API| FLASK
+    FLASK -->|SSE| REACT
+    PYVMOMI --> ESXI1
+    PYVMOMI --> ESXI2
+    FLASK --> CPUBENCH
+```
 
-## セットアップ
+### データフロー
+
+```mermaid
+sequenceDiagram
+    participant U as 👤 ユーザー
+    participant F as 📱 React
+    participant B as 🔧 Flask
+    participant C as 💾 Cache
+    participant E as 🖥️ ESXi
+
+    U->>F: ページアクセス
+    F->>B: GET /api/config
+    B->>C: キャッシュ確認
+
+    alt キャッシュあり
+        C-->>B: VM 情報返却
+    else キャッシュなし or 期限切れ
+        B->>E: pyVmomi で接続
+        E-->>B: VM 情報取得
+        B->>C: キャッシュ保存
+    end
+
+    B-->>F: サーバー・VM 情報
+    F-->>U: ダッシュボード表示
+
+    loop 5分間隔
+        B->>E: データ更新
+        B->>F: SSE でプッシュ通知
+        F-->>U: 画面自動更新
+    end
+```
+
+### 🗂️ モジュール構成
+
+```
+src/server_list/
+├── __init__.py
+├── spec/
+│   ├── config.py           # 設定管理
+│   ├── data_collector.py   # ESXi データ収集
+│   ├── cpu_benchmark.py    # CPU スコア取得
+│   ├── uptime.py           # 稼働時間管理
+│   └── webapi/
+│       ├── app.py          # Flask アプリ
+│       ├── config.py       # /api/config
+│       ├── vm.py           # /api/vm/*
+│       ├── cpu.py          # /api/cpu/*
+│       └── uptime.py       # /api/uptime/*
+```
+
+```
+frontend/src/
+├── App.tsx                 # メインアプリ
+├── pages/
+│   ├── HomePage.tsx        # サーバー一覧
+│   └── MachineDetailPage.tsx # 詳細ページ
+├── components/
+│   ├── ServerCard.tsx      # サーバーカード
+│   ├── VMTable.tsx         # VM テーブル
+│   ├── PerformanceBar.tsx  # 性能バー
+│   ├── StorageInfo.tsx     # ストレージ表示
+│   └── UptimeDisplay.tsx   # 稼働時間表示
+└── hooks/
+    └── useEventSource.ts   # SSE フック
+```
+
+## 🛠️ セットアップ
 
 ### 必要な環境
 
-- Python 3.11+
-- Node.js 24.x
-- uv（Python パッケージマネージャ）
+- 🐍 Python 3.11+
+- 📦 Node.js 24.x
+- 🚀 uv（Python パッケージマネージャ）
 
 ### 1. 依存パッケージのインストール
 
@@ -78,9 +168,9 @@ cp config.yaml.example config.yaml
 cp secret.yaml.example secret.yaml
 ```
 
-## 実行方法
+## 🚀 実行方法
 
-### Docker を使用する場合
+### 🐳 Docker を使用する場合
 
 ```bash
 # フロントエンドのビルド
@@ -90,7 +180,7 @@ cd frontend && npm run build && cd ..
 docker compose up --build
 ```
 
-### Docker を使用しない場合
+### 💻 Docker を使用しない場合
 
 ```bash
 # フロントエンドのビルド
@@ -100,7 +190,7 @@ cd frontend && npm run build && cd ..
 uv run server-list-webui -c config.yaml
 ```
 
-### コマンドラインオプション
+### ⚙️ コマンドラインオプション
 
 ```
 Usage:
@@ -112,7 +202,7 @@ Options:
   -D         デバッグモードで実行
 ```
 
-### 開発モード
+### 🔧 開発モード
 
 ```bash
 # フロントエンド開発サーバー
@@ -122,7 +212,7 @@ cd frontend && npm run dev
 uv run server-list-webui -D
 ```
 
-## 設定ファイル
+## 📝 設定ファイル
 
 ### config.yaml
 
@@ -155,17 +245,17 @@ esxi_auth:
     port: 443
 ```
 
-## API エンドポイント
+## 🔌 API エンドポイント
 
 ベース URL: `/server-list/api`
 
-### 設定
+### 📋 設定
 
 | エンドポイント | メソッド | 説明 |
 |---------------|---------|------|
 | `/config` | GET | サーバー設定と VM 情報を取得 |
 
-### VM 情報
+### 🖥️ VM 情報
 
 | エンドポイント | メソッド | 説明 |
 |---------------|---------|------|
@@ -174,27 +264,27 @@ esxi_auth:
 | `/vm/host/<esxi_host>` | GET | 指定ホストの全 VM 情報を取得 |
 | `/vm/refresh/<esxi_host>` | POST | 指定ホストのデータを即時更新 |
 
-### CPU ベンチマーク
+### 📊 CPU ベンチマーク
 
 | エンドポイント | メソッド | 説明 |
 |---------------|---------|------|
 | `/cpu/benchmark` | GET | CPU のベンチマークスコアを取得 |
 | `/cpu/benchmark/batch` | POST | 複数 CPU のスコアを一括取得 |
 
-### 稼働時間
+### ⏱️ 稼働時間
 
 | エンドポイント | メソッド | 説明 |
 |---------------|---------|------|
 | `/uptime` | GET | 全ホストの稼働時間を取得 |
 | `/uptime/<host>` | GET | 指定ホストの稼働時間を取得 |
 
-### イベント
+### 📡 イベント
 
 | エンドポイント | メソッド | 説明 |
 |---------------|---------|------|
 | `/event` | GET | Server-Sent Events でデータ更新を通知 |
 
-## テスト
+## 🧪 テスト
 
 ```bash
 # 全テスト実行
@@ -214,13 +304,17 @@ uv run pytest tests/unit/test_webapi_vm.py
 - `tests/integration/` - 結合テスト
 - `tests/e2e/` - E2E テスト（Playwright）
 
-## CI/CD
+## 🔄 CI/CD
 
 GitHub Actions による自動テスト・デプロイ:
 
-- **テスト結果**: https://kimata.github.io/server-list/pytest.html
-- **カバレッジ**: https://kimata.github.io/server-list/coverage/
+- 📋 **テスト結果**: https://kimata.github.io/server-list/pytest.html
+- 📊 **カバレッジ**: https://kimata.github.io/server-list/coverage/
 
-## ライセンス
+## 📄 ライセンス
 
 Apache License Version 2.0
+
+---
+
+[🐛 Issue 報告](https://github.com/kimata/server-list/issues)
