@@ -1,0 +1,81 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+        "webapp": {
+            "type": "object",
+            "properties": {
+                "static_dir_path": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "static_dir_path"
+            ]
+        },
+        "machine": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "mode": {
+                        "type": "string"
+                    },
+                    "cpu": {
+                        "type": "string"
+                    },
+                    "ram": {
+                        "type": "string"
+                    },
+                    "storage": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "model": {
+                                    "type": "string"
+                                },
+                                "volume": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": ["name"]
+                        }
+                    },
+                    "os": {
+                        "type": "string"
+                    },
+                    "esxi": {
+                        "type": "string"
+                    },
+                    "ilo": {
+                        "type": "string"
+                    },
+                    "vm": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": ["name"]
+                        }
+                    }
+                },
+                "required": ["name"]
+            }
+        }
+    },
+    "required": [
+        "webapp",
+        "machine"
+    ]
+}

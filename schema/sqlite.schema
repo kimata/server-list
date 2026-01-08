@@ -1,0 +1,32 @@
+-- SQLite schema for server-list data collector
+
+-- VM info table (with timestamp)
+CREATE TABLE IF NOT EXISTS vm_info (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    esxi_host TEXT NOT NULL,
+    vm_name TEXT NOT NULL,
+    cpu_count INTEGER,
+    ram_mb INTEGER,
+    storage_gb REAL,
+    power_state TEXT,
+    collected_at TIMESTAMP NOT NULL,
+    UNIQUE(esxi_host, vm_name)
+);
+
+-- Host info table (uptime + CPU info)
+CREATE TABLE IF NOT EXISTS uptime_info (
+    host TEXT PRIMARY KEY,
+    boot_time TEXT,
+    uptime_seconds REAL,
+    status TEXT NOT NULL,
+    cpu_threads INTEGER,
+    cpu_cores INTEGER,
+    collected_at TIMESTAMP NOT NULL
+);
+
+-- Fetch status table
+CREATE TABLE IF NOT EXISTS fetch_status (
+    esxi_host TEXT PRIMARY KEY,
+    last_fetch TIMESTAMP,
+    status TEXT
+);
