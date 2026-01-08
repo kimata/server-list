@@ -149,6 +149,8 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
   }
 
   // Calculate totals
+  // CPU and RAM: only count powered on VMs (use cached_power_state for calculation)
+  // Storage: count all VMs (allocated regardless of power state)
   const totals = {
     cpu: 0,
     ramMb: 0,
@@ -158,8 +160,11 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
   for (const vm of vms) {
     const info = vmInfoMap[vm.name];
     if (info) {
-      totals.cpu += info.cpu_count || 0;
-      totals.ramMb += info.ram_mb || 0;
+      const isPoweredOn = info.cached_power_state?.includes('poweredOn');
+      if (isPoweredOn) {
+        totals.cpu += info.cpu_count || 0;
+        totals.ramMb += info.ram_mb || 0;
+      }
       totals.storageGb += info.storage_gb || 0;
     }
   }

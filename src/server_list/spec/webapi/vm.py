@@ -21,14 +21,18 @@ def apply_unknown_power_state_if_unreachable(vm_info: dict | None) -> dict | Non
 
     When ESXi host cannot be contacted, we use cached data but
     set power_state to 'unknown' to indicate the current state
-    cannot be determined.
+    cannot be determined. The original cached value is preserved
+    in cached_power_state for resource calculations.
     """
     if vm_info is None:
         return None
 
+    vm_info = dict(vm_info)  # Make a copy to avoid modifying original
+    cached_power_state = vm_info.get("power_state")
+    vm_info["cached_power_state"] = cached_power_state
+
     esxi_host = vm_info.get("esxi_host")
     if esxi_host and not is_host_reachable(esxi_host):
-        vm_info = dict(vm_info)  # Make a copy to avoid modifying original
         vm_info["power_state"] = "unknown"
 
     return vm_info
@@ -122,12 +126,16 @@ def get_vms_for_host(esxi_host: str):
     vms = get_all_vm_info_for_host(esxi_host)
 
     # Apply unknown power_state if host is unreachable
+    # Keep cached_power_state for resource calculations
     host_reachable = is_host_reachable(esxi_host)
-    if not host_reachable:
-        vms = [
-            {**vm, "power_state": "unknown"}
-            for vm in vms
-        ]
+    vms = [
+        {
+            **vm,
+            "cached_power_state": vm.get("power_state"),
+            "power_state": vm.get("power_state") if host_reachable else "unknown",
+        }
+        for vm in vms
+    ]
 
     return jsonify({
         "success": True,

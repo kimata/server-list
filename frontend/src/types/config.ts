@@ -42,6 +42,7 @@ export interface VMInfo {
   ram_mb: number | null;
   storage_gb: number | null;
   power_state: string | null;
+  cached_power_state: string | null;
   esxi_host: string;
 }
 
