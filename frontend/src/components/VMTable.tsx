@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { VirtualMachine, VMInfo } from '../types/config';
+import { useEventSource } from '../hooks/useEventSource';
 
 interface VMTableProps {
   vms: VirtualMachine[];
@@ -76,44 +77,72 @@ function ResourceBar({ used, total, label, color, unit }: ResourceBarProps) {
 export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb }: VMTableProps) {
   const [vmInfoMap, setVmInfoMap] = useState<Record<string, VMInfo | null>>({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchAllVMInfo = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      // Batch fetch all VM info
+      const response = await fetch('/server-list/api/vm/info/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vms: vms.map((vm) => vm.name),
+          esxi_host: esxiHost,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.results) {
+          const newMap: Record<string, VMInfo | null> = {};
+          for (const vm of vms) {
+            const result = data.results[vm.name];
+            newMap[vm.name] = result?.success ? result.data : null;
+          }
+          setVmInfoMap(newMap);
+        }
+      }
+    } catch {
+      console.log('Failed to fetch VM info');
+    }
+
+    setLoading(false);
+  }, [vms, esxiHost]);
+
+  // SSE event listener for data updates
+  useEventSource('/server-list/api/event', {
+    onMessage: (event) => {
+      if (event.data === 'data') {
+        fetchAllVMInfo();
+        setRefreshing(false);
+      }
+    },
+  });
 
   useEffect(() => {
-    const fetchAllVMInfo = async () => {
-      setLoading(true);
-
-      try {
-        // Batch fetch all VM info
-        const response = await fetch('/server-list/api/vm/info/batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            vms: vms.map((vm) => vm.name),
-            esxi_host: esxiHost,
-          }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.results) {
-            const newMap: Record<string, VMInfo | null> = {};
-            for (const vm of vms) {
-              const result = data.results[vm.name];
-              newMap[vm.name] = result?.success ? result.data : null;
-            }
-            setVmInfoMap(newMap);
-          }
-        }
-      } catch {
-        console.log('Failed to fetch VM info');
-      }
-
-      setLoading(false);
-    };
-
     if (vms.length > 0) {
       fetchAllVMInfo();
     }
-  }, [vms, esxiHost]);
+  }, [vms, esxiHost, fetchAllVMInfo]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const response = await fetch(`/server-list/api/vm/refresh/${encodeURIComponent(esxiHost)}`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        console.error('Failed to trigger refresh');
+        setRefreshing(false);
+      }
+      // Note: We don't set refreshing to false here because the SSE event will trigger the update
+    } catch {
+      console.error('Failed to trigger refresh');
+      setRefreshing(false);
+    }
+  };
 
   if (!vms || vms.length === 0) {
     return null;
@@ -139,12 +168,24 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
 
   return (
     <div className="vm-table-container">
-      <h4 className="title is-5 mb-4">
-        <span className="icon-text">
-          <span className="icon">☁️</span>
-          <span>仮想マシン ({vms.length}台)</span>
-        </span>
-      </h4>
+      <div className="is-flex is-justify-content-space-between is-align-items-center mb-4">
+        <h4 className="title is-5 mb-0">
+          <span className="icon-text">
+            <span className="icon">☁️</span>
+            <span>仮想マシン ({vms.length}台)</span>
+          </span>
+        </h4>
+        <button
+          className={`button is-small is-light ${refreshing ? 'is-loading' : ''}`}
+          onClick={handleRefresh}
+          disabled={refreshing}
+          title="ESXi から最新データを取得"
+        >
+          <span className="icon is-small">
+            🔄
+          </span>
+        </button>
+      </div>
 
       {/* Resource Usage Summary */}
       {!loading && (hostCpuCount || hostRamGb || hostStorageGb) && (

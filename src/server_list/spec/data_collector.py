@@ -478,6 +478,68 @@ def collect_all_data():
         logging.info("Data collection complete, clients notified")
 
 
+def collect_host_data(host: str) -> bool:
+    """Collect data from a specific ESXi host.
+
+    Args:
+        host: The ESXi host name to collect data from
+
+    Returns:
+        True if data was successfully collected, False otherwise
+    """
+    secret = load_secret()
+    esxi_auth = secret.get("esxi_auth", {})
+
+    if host not in esxi_auth:
+        logging.warning("No credentials found for host: %s", host)
+        return False
+
+    credentials = esxi_auth[host]
+    logging.info("Collecting data from %s (manual refresh)...", host)
+
+    si = connect_to_esxi(
+        host=credentials.get("host", host),
+        username=credentials["username"],
+        password=credentials["password"],
+        port=credentials.get("port", 443)
+    )
+
+    if not si:
+        update_fetch_status(host, "connection_failed")
+        save_host_info_failed(host)
+        my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.DATA)
+        return False
+
+    try:
+        # Collect VM data
+        vms = fetch_vm_data(si, host)
+        save_vm_data(host, vms)
+        logging.info("  Cached %d VMs from %s", len(vms), host)
+
+        # Collect host info (uptime + CPU)
+        host_info = fetch_host_info(si, host)
+        if host_info:
+            save_host_info(host_info)
+            logging.info("  Cached host info for %s (CPU threads: %s)", host, host_info.get("cpu_threads"))
+        else:
+            save_host_info_failed(host)
+
+        update_fetch_status(host, "success")
+        my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.DATA)
+        logging.info("Data collection complete for %s, clients notified", host)
+        return True
+
+    except Exception as e:
+        logging.warning("Error collecting data from %s: %s", host, e)
+        update_fetch_status(host, f"error: {e}")
+        save_host_info_failed(host)
+        my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.DATA)
+        return False
+
+    finally:
+        Disconnect(si)
+
+
 def _update_worker():
     """Background worker that collects data periodically."""
     logging.info("Data collector started (interval: %d sec)", UPDATE_INTERVAL_SEC)

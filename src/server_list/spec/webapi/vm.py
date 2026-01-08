@@ -6,7 +6,12 @@ Endpoint: /server-list/api/vm
 
 from flask import Blueprint, jsonify, request
 
-from server_list.spec.data_collector import get_vm_info, get_all_vm_info_for_host, is_host_reachable
+from server_list.spec.data_collector import (
+    get_vm_info,
+    get_all_vm_info_for_host,
+    is_host_reachable,
+    collect_host_data,
+)
 
 vm_api = Blueprint("vm_api", __name__)
 
@@ -129,3 +134,29 @@ def get_vms_for_host(esxi_host: str):
         "esxi_host": esxi_host,
         "vms": vms
     })
+
+
+@vm_api.route("/vm/refresh/<esxi_host>", methods=["POST"])
+def refresh_host_data(esxi_host: str):
+    """
+    Trigger immediate data collection from an ESXi host.
+
+    This endpoint triggers the data collector to fetch fresh data
+    from the specified ESXi host. After collection is complete,
+    an SSE event is sent to notify connected clients.
+
+    Returns:
+        JSON with success status
+    """
+    success = collect_host_data(esxi_host)
+
+    if success:
+        return jsonify({
+            "success": True,
+            "message": f"Data collection completed for {esxi_host}",
+        })
+
+    return jsonify({
+        "success": False,
+        "error": f"Failed to collect data from {esxi_host}",
+    }), 500
