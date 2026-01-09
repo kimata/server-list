@@ -16,24 +16,29 @@ from __future__ import annotations
 import atexit
 import logging
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import unquote
 
 import flask
 import flask_cors
-
 import my_lib.webapp.base
 import my_lib.webapp.config
 import my_lib.webapp.event
 
-from server_list.spec import db
-from server_list.spec.webapi.cpu import cpu_api
-from server_list.spec.webapi.config import config_api
-from server_list.spec.webapi.vm import vm_api
-from server_list.spec.webapi.uptime import uptime_api
-from server_list.spec.webapi.power import power_api
-from server_list.spec import data_collector, cache_manager
-from server_list.spec.data_collector import start_collector, stop_collector
+from server_list.spec import cache_manager, data_collector, db
 from server_list.spec.cache_manager import start_cache_worker, stop_cache_worker
+from server_list.spec.data_collector import start_collector, stop_collector
+from server_list.spec.ogp import (
+    generate_machine_page_ogp,
+    generate_top_page_ogp,
+    inject_ogp_into_html,
+)
+from server_list.spec.webapi.config import config_api
+from server_list.spec.webapi.cpu import cpu_api
+from server_list.spec.webapi.power import power_api
+from server_list.spec.webapi.uptime import uptime_api
+from server_list.spec.webapi.vm import vm_api
 
 if TYPE_CHECKING:
     from server_list.config import Config
@@ -71,13 +76,40 @@ def create_app(
     app.register_blueprint(my_lib.webapp.base.blueprint, url_prefix=URL_PREFIX)
     app.register_blueprint(my_lib.webapp.event.blueprint, url_prefix=URL_PREFIX)
 
-    # SPA fallback route - return index.html for client-side routing
-    @app.route(f"{URL_PREFIX}/machine/<path:subpath>")
-    def spa_fallback(subpath):  # noqa: ARG001
-        return flask.send_from_directory(
-            my_lib.webapp.config.STATIC_DIR_PATH,
-            "index.html"
+    def get_base_url() -> str:
+        """Get base URL from request."""
+        return flask.request.url_root.rstrip("/")
+
+    def serve_html_with_ogp(ogp_tags: str) -> flask.Response:
+        """Serve index.html with OGP tags injected."""
+        index_path = Path(my_lib.webapp.config.STATIC_DIR_PATH) / "index.html"
+        if not index_path.exists():
+            return flask.send_from_directory(
+                my_lib.webapp.config.STATIC_DIR_PATH,
+                "index.html"
+            )
+
+        html_content = index_path.read_text(encoding="utf-8")
+        modified_html = inject_ogp_into_html(html_content, ogp_tags)
+        return flask.Response(modified_html, mimetype="text/html")
+
+    # Top page with OGP
+    @app.route(f"{URL_PREFIX}/")
+    def index_with_ogp():
+        ogp_tags = generate_top_page_ogp(get_base_url(), config)
+        return serve_html_with_ogp(ogp_tags)
+
+    # SPA fallback route with machine-specific OGP
+    @app.route(f"{URL_PREFIX}/machine/<path:machine_name>")
+    def machine_page_with_ogp(machine_name: str):
+        decoded_name = unquote(machine_name)
+        ogp_tags = generate_machine_page_ogp(
+            get_base_url(),
+            decoded_name,
+            config,
+            db.IMAGE_DIR,
         )
+        return serve_html_with_ogp(ogp_tags)
 
     # Serve server model images
     @app.route(f"{URL_PREFIX}/api/img/<path:filename>")
