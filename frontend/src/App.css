@@ -1,5 +1,6 @@
-/* Server List Custom Styles */
+/* Server List Custom Styles for Tailwind CSS */
 
+/* Server card hover effects */
 .server-card {
   height: 100%;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -10,19 +11,7 @@
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
 }
 
-.server-card .card-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.server-card .card-header-title {
-  color: white;
-  font-weight: 600;
-}
-
-.server-card .card-header-icon .tag {
-  font-size: 0.75rem;
-}
-
+/* Storage item styling */
 .storage-item {
   padding: 0.75rem;
   margin-bottom: 0.5rem;
@@ -32,77 +21,6 @@
 
 .storage-item:last-child {
   margin-bottom: 0;
-}
-
-.vm-list .tags {
-  flex-wrap: wrap;
-}
-
-.vm-list .tag {
-  margin-bottom: 0.5rem;
-}
-
-.notification .heading {
-  font-size: 0.75rem;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  margin-bottom: 0.5rem;
-}
-
-.notification .title {
-  margin-bottom: 0 !important;
-}
-
-.hero.is-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.footer {
-  background-color: #f8f9fa;
-  padding: 1.5rem;
-}
-
-/* Responsive adjustments */
-@media screen and (max-width: 768px) {
-  .server-card .card-header-title {
-    font-size: 0.9rem;
-  }
-
-  .tags.has-addons .tag {
-    font-size: 0.7rem;
-  }
-}
-
-/* Animation for cards */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.column > .server-card {
-  animation: fadeInUp 0.5s ease forwards;
-}
-
-.column:nth-child(1) > .server-card {
-  animation-delay: 0.1s;
-}
-
-.column:nth-child(2) > .server-card {
-  animation-delay: 0.2s;
-}
-
-.column:nth-child(3) > .server-card {
-  animation-delay: 0.3s;
-}
-
-.column:nth-child(4) > .server-card {
-  animation-delay: 0.4s;
 }
 
 /* Performance Bar Styles */
@@ -147,11 +65,6 @@
   opacity: 0.8;
 }
 
-/* Prevent pointer cursor on non-link tags */
-.tag:not(a .tag) {
-  cursor: default;
-}
-
 /* VM Tooltip Styles */
 .vm-tag {
   cursor: pointer;
@@ -164,11 +77,6 @@
 
 .vm-tooltip {
   pointer-events: none;
-}
-
-.vm-tooltip .box {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border: 1px solid #e0e0e0;
 }
 
 /* Clickable card styles */
@@ -192,44 +100,28 @@
   align-items: center;
 }
 
-.uptime-display .tag {
-  font-family: monospace;
+/* Animation for cards */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-/* Breadcrumb in hero */
-.hero .breadcrumb a {
-  opacity: 0.8;
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease forwards;
 }
 
-.hero .breadcrumb a:hover {
-  opacity: 1;
+/* Hero gradient background */
+.hero-gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-.hero .breadcrumb li.is-active a {
-  opacity: 1;
-}
-
-/* VM Table styles */
-.vm-table-container .table {
-  font-size: 0.9rem;
-}
-
-.vm-table-container .table th {
-  background-color: #f5f5f5;
-  font-weight: 600;
-}
-
-.vm-table-container .table tfoot th {
-  font-weight: 600;
-  border-top: 2px solid #dbdbdb;
-}
-
-/* Quick actions box */
-.buttons .button.is-fullwidth {
-  justify-content: center;
-}
-
-/* VM Summary on card */
-.vm-summary .tags {
-  margin-bottom: 0;
+/* Card header gradient */
+.card-header-gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }

@@ -145,12 +145,12 @@ export function MachineDetailPage() {
 
   if (loading) {
     return (
-      <section className="hero is-fullheight">
-        <div className="hero-body">
-          <div className="container has-text-centered">
-            <progress className="progress is-primary" max="100">Loading...</progress>
-            <p className="mt-4">読み込み中...</p>
+      <section className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-48 h-2 bg-gray-200 rounded-full overflow-hidden mx-auto">
+            <div className="h-full bg-purple-600 animate-pulse w-3/4"></div>
           </div>
+          <p className="mt-4 text-gray-600">読み込み中...</p>
         </div>
       </section>
     );
@@ -158,11 +158,11 @@ export function MachineDetailPage() {
 
   if (error || !machine) {
     return (
-      <section className="section">
-        <div className="container">
-          <div className="notification is-danger">
-            <p>{error || 'Machine not found'}</p>
-            <Link to="/" className="button is-light mt-3">
+      <section className="py-8">
+        <div className="container mx-auto px-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-700">{error || 'Machine not found'}</p>
+            <Link to="/" className="inline-block mt-3 px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded transition-colors">
               一覧に戻る
             </Link>
           </div>
@@ -177,69 +177,62 @@ export function MachineDetailPage() {
 
   return (
     <>
-      <section className="hero is-primary is-bold">
-        <div className="hero-body">
-          <div className="container">
-            <nav className="breadcrumb has-bullet-separator" aria-label="breadcrumbs">
-              <ul>
-                <li>
-                  <Link to="/" className="has-text-white-ter">サーバー一覧</Link>
-                </li>
-                <li className="is-active">
-                  <a href="#" className="has-text-white">{String(machine.name ?? '')}</a>
-                </li>
-              </ul>
-            </nav>
-            <h1 className="title is-3">
-              {String(machine.name ?? '')}
-            </h1>
-            <div className="is-flex is-align-items-center">
-              <UptimeDisplay uptimeInfo={uptimeInfo} hostName={machine.name} />
-              {powerInfo?.power_watts != null && (
-                <span className="tag is-danger is-light ml-2">
-                  <span className="icon is-small mr-1">⚡</span>
-                  <span>{powerInfo.power_watts} W</span>
-                </span>
-              )}
-              {machine.esxi && (
-                <a
-                  href={machine.esxi}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-3"
-                >
-                  <span className="tag is-link">ESXi</span>
-                </a>
-              )}
-              {machine.ilo && (
-                <a
-                  href={machine.ilo}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-2"
-                >
-                  <span className="tag is-warning">iLO</span>
-                </a>
-              )}
-              <span className="tag is-info ml-2">{String((uptimeInfo?.esxi_version ?? machine.os ?? '').replace(/^VMware\s+/i, ''))}</span>
-            </div>
+      <section className="hero-gradient py-12">
+        <div className="container mx-auto px-4">
+          <nav className="flex items-center text-white/80 text-sm mb-4" aria-label="breadcrumbs">
+            <Link to="/" className="hover:text-white transition-colors">サーバー一覧</Link>
+            <span className="mx-2">•</span>
+            <span className="text-white">{String(machine.name ?? '')}</span>
+          </nav>
+          <h1 className="text-2xl font-bold text-white">
+            {String(machine.name ?? '')}
+          </h1>
+          <div className="flex items-center flex-wrap gap-2 mt-3">
+            <UptimeDisplay uptimeInfo={uptimeInfo} hostName={machine.name} />
+            {powerInfo?.power_watts != null && (
+              <span className="inline-flex items-center px-2 py-1 bg-red-100 text-red-700 rounded text-sm">
+                <span className="mr-1">⚡</span>
+                <span>{powerInfo.power_watts} W</span>
+              </span>
+            )}
+            {machine.esxi && (
+              <a
+                href={machine.esxi}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span className="inline-block px-2 py-1 bg-blue-500 text-white rounded text-sm">ESXi</span>
+              </a>
+            )}
+            {machine.ilo && (
+              <a
+                href={machine.ilo}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span className="inline-block px-2 py-1 bg-yellow-500 text-white rounded text-sm">iLO</span>
+              </a>
+            )}
+            <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
+              {String((uptimeInfo?.esxi_version ?? machine.os ?? '').replace(/^VMware\s+/i, ''))}
+            </span>
           </div>
         </div>
       </section>
 
-      <section className="section">
-        <div className="container">
-          <div className="columns">
-            <div className="column is-8">
+      <section className="py-8">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
               {/* Machine Specs */}
-              <div className="box">
-                <h3 className="title is-5 mb-4">ハードウェア仕様</h3>
+              <div className="bg-white rounded-lg shadow p-6 mb-6">
+                <h3 className="text-lg font-bold mb-4">ハードウェア仕様</h3>
 
                 <div className="specs-section">
                   <div className="spec-item mb-4">
-                    <div className="is-flex is-align-items-center mb-2">
-                      <span className="tag is-warning is-light mr-2">CPU</span>
-                      <span className="is-size-6">{String(machine.cpu ?? '')}</span>
+                    <div className="flex items-center mb-2">
+                      <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-sm mr-2">CPU</span>
+                      <span className="text-sm">{String(machine.cpu ?? '')}</span>
                     </div>
                     {cpuBenchmark?.multi_thread_score && maxCpuScore > 0 && (
                       <PerformanceBar
@@ -287,7 +280,7 @@ export function MachineDetailPage() {
 
               {/* Virtual Machines */}
               {machine.vm && machine.vm.length > 0 && (
-                <div className="box">
+                <div className="bg-white rounded-lg shadow p-6">
                   <VMTable
                     vms={machine.vm}
                     esxiHost={machine.name}
@@ -299,30 +292,30 @@ export function MachineDetailPage() {
               )}
             </div>
 
-            <div className="column is-4">
+            <div>
               {/* Server Image */}
-              <div className="box has-text-centered">
+              <div className="bg-white rounded-lg shadow p-6 text-center mb-6">
                 <ServerImage modelName={machine.mode} size="large" />
-                <div className="has-text-centered mt-3">
-                  <div className="tags has-addons is-justify-content-center">
-                    <span className="tag is-dark">モデル</span>
-                    <span className="tag is-light">{String(machine.mode ?? '')}</span>
+                <div className="mt-3">
+                  <div className="inline-flex rounded overflow-hidden">
+                    <span className="px-2 py-1 bg-gray-800 text-white text-sm">モデル</span>
+                    <span className="px-2 py-1 bg-gray-100 text-gray-800 text-sm">{String(machine.mode ?? '')}</span>
                   </div>
                 </div>
               </div>
 
               {/* Storage Details */}
-              <div className="box">
-                <h3 className="title is-5 mb-4">ストレージ詳細</h3>
+              <div className="bg-white rounded-lg shadow p-6 mb-6">
+                <h3 className="text-lg font-bold mb-4">ストレージ詳細</h3>
                 <StorageInfo storage={machine.storage} />
               </div>
 
               {/* Quick Actions */}
-              <div className="box">
-                <h3 className="title is-5 mb-4">クイックアクション</h3>
-                <div className="buttons">
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-bold mb-4">クイックアクション</h3>
+                <div className="space-y-2">
                   <button
-                    className="button is-light is-fullwidth"
+                    className="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded transition-colors"
                     onClick={() => navigate('/')}
                   >
                     一覧に戻る
@@ -332,7 +325,7 @@ export function MachineDetailPage() {
                       href={machine.esxi}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="button is-link is-fullwidth"
+                      className="block w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-center rounded transition-colors"
                     >
                       ESXi管理画面を開く
                     </a>
@@ -342,7 +335,7 @@ export function MachineDetailPage() {
                       href={machine.ilo}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="button is-warning is-fullwidth"
+                      className="block w-full px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white text-center rounded transition-colors"
                     >
                       iLO管理画面を開く
                     </a>
@@ -354,10 +347,10 @@ export function MachineDetailPage() {
         </div>
       </section>
 
-      <footer className="footer">
-        <div className="content has-text-centered">
+      <footer className="py-6 bg-gray-100 mt-auto">
+        <div className="container mx-auto px-4 text-center text-gray-600">
           <p>
-            Server List Viewer - Built with React + Bulma
+            Server List Viewer - Built with React + Tailwind CSS
           </p>
         </div>
       </footer>

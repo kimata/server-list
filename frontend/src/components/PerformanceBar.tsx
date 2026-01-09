@@ -22,12 +22,12 @@ export function PerformanceBar({
 
   return (
     <div className="performance-bar mb-2">
-      <div className="is-flex is-justify-content-space-between is-align-items-center mb-1">
-        <span className="is-size-7 has-text-grey">
+      <div className="flex justify-between items-center mb-1">
+        <span className="text-xs text-gray-500">
           {icon && <span className="mr-1">{icon}</span>}
           {label}
         </span>
-        <span className="is-size-7 has-text-weight-semibold">
+        <span className="text-xs font-semibold">
           {safeValue.toLocaleString()}{unit}
         </span>
       </div>

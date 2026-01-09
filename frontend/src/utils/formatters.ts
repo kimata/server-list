@@ -37,12 +37,12 @@ export function formatUptime(seconds: number): string {
 }
 
 /**
- * Get power state display info (color class and label)
+ * Get power state display info (tailwind class and label)
  */
-export function getPowerStateInfo(powerState: string | null): { color: string; label: string } {
-  if (!powerState) return { color: 'is-light', label: '-' };
-  if (powerState.includes('poweredOn')) return { color: 'is-success', label: 'ON' };
-  if (powerState.includes('poweredOff')) return { color: 'is-danger', label: 'OFF' };
-  if (powerState.includes('suspended')) return { color: 'is-warning', label: 'SUSPENDED' };
-  return { color: 'is-light', label: powerState };
+export function getPowerStateInfo(powerState: string | null): { tailwindClass: string; label: string } {
+  if (!powerState) return { tailwindClass: 'bg-gray-100 text-gray-700', label: '-' };
+  if (powerState.includes('poweredOn')) return { tailwindClass: 'bg-green-500 text-white', label: 'ON' };
+  if (powerState.includes('poweredOff')) return { tailwindClass: 'bg-red-500 text-white', label: 'OFF' };
+  if (powerState.includes('suspended')) return { tailwindClass: 'bg-yellow-500 text-white', label: 'SUSPENDED' };
+  return { tailwindClass: 'bg-gray-100 text-gray-700', label: powerState };
 }

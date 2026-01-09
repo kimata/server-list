@@ -51,9 +51,9 @@ export function UptimeDisplay({ uptimeInfo }: UptimeDisplayProps) {
   if (!uptimeInfo) {
     return (
       <div className="uptime-display">
-        <span className="tag is-light">
-          <span className="icon is-small mr-1">⏱️</span>
-          <span className="is-size-7">Uptime: 取得中...</span>
+        <span className="inline-flex items-center px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
+          <span className="mr-1">⏱️</span>
+          <span>Uptime: 取得中...</span>
         </span>
       </div>
     );
@@ -62,9 +62,9 @@ export function UptimeDisplay({ uptimeInfo }: UptimeDisplayProps) {
   if (uptimeInfo.status === 'stopped') {
     return (
       <div className="uptime-display">
-        <span className="tag is-danger">
-          <span className="icon is-small mr-1">⚠️</span>
-          <span className="is-size-7">停止中</span>
+        <span className="inline-flex items-center px-2 py-0.5 bg-red-500 text-white rounded text-xs">
+          <span className="mr-1">⚠️</span>
+          <span>停止中</span>
         </span>
       </div>
     );
@@ -73,9 +73,9 @@ export function UptimeDisplay({ uptimeInfo }: UptimeDisplayProps) {
   if (uptimeInfo.status === 'unknown') {
     return (
       <div className="uptime-display">
-        <span className="tag is-warning is-light">
-          <span className="icon is-small mr-1">❓</span>
-          <span className="is-size-7">状態不明</span>
+        <span className="inline-flex items-center px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs">
+          <span className="mr-1">❓</span>
+          <span>状態不明</span>
         </span>
       </div>
     );
@@ -83,9 +83,9 @@ export function UptimeDisplay({ uptimeInfo }: UptimeDisplayProps) {
 
   return (
     <div className="uptime-display">
-      <span className="tag is-success is-light">
-        <span className="icon is-small mr-1">⏱️</span>
-        <span className="is-size-7">
+      <span className="inline-flex items-center px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">
+        <span className="mr-1">⏱️</span>
+        <span>
           Uptime: {displaySeconds !== null ? formatUptime(displaySeconds) : '計算中...'}
         </span>
       </span>

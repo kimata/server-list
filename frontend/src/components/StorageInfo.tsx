@@ -8,31 +8,31 @@ export function StorageInfo({ storage }: StorageInfoProps) {
   if (!storage || !Array.isArray(storage) || storage.length === 0) {
     return (
       <div className="storage-info">
-        <h4 className="title is-6">
+        <h4 className="text-sm font-bold mb-2">
           💾 ストレージ
         </h4>
-        <p className="has-text-grey is-size-7">ストレージ情報がありません</p>
+        <p className="text-gray-500 text-xs">ストレージ情報がありません</p>
       </div>
     );
   }
 
   return (
     <div className="storage-info">
-      <h4 className="title is-6">
+      <h4 className="text-sm font-bold mb-2">
         💾 ストレージ
       </h4>
-      <div className="content">
+      <div>
         {storage.map((disk, index) => (
-          <div key={index} className="box storage-item">
-            <div className="columns is-mobile is-vcentered">
-              <div className="column">
-                <p className="has-text-weight-semibold">{String(disk.name ?? '')}</p>
-                <p className="is-size-7 has-text-grey">
+          <div key={index} className="storage-item rounded">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold text-sm">{String(disk.name ?? '')}</p>
+                <p className="text-xs text-gray-500">
                   📦 モデル: {String(disk.model ?? '')}
                 </p>
               </div>
-              <div className="column is-narrow">
-                <span className="tag is-info is-medium volume-tag">
+              <div>
+                <span className="inline-block px-3 py-1 bg-blue-500 text-white rounded text-sm volume-tag">
                   {String(disk.volume ?? '')}
                 </span>
               </div>

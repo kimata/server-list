@@ -119,12 +119,12 @@ export function HomePage() {
 
   if (loading) {
     return (
-      <section className="hero is-fullheight">
-        <div className="hero-body">
-          <div className="container has-text-centered">
-            <progress className="progress is-primary" max="100">Loading...</progress>
-            <p className="mt-4">設定ファイルを読み込み中...</p>
+      <section className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-48 h-2 bg-gray-200 rounded-full overflow-hidden mx-auto">
+            <div className="h-full bg-purple-600 animate-pulse w-3/4"></div>
           </div>
+          <p className="mt-4 text-gray-600">設定ファイルを読み込み中...</p>
         </div>
       </section>
     );
@@ -132,12 +132,10 @@ export function HomePage() {
 
   if (error) {
     return (
-      <section className="hero is-fullheight is-danger">
-        <div className="hero-body">
-          <div className="container has-text-centered">
-            <h1 className="title">エラー</h1>
-            <p className="subtitle">{error}</p>
-          </div>
+      <section className="min-h-screen flex items-center justify-center bg-red-500">
+        <div className="text-center text-white">
+          <h1 className="text-3xl font-bold">エラー</h1>
+          <p className="text-xl mt-2">{error}</p>
         </div>
       </section>
     );
@@ -153,45 +151,37 @@ export function HomePage() {
 
   return (
     <>
-      <section className="hero is-primary is-bold">
-        <div className="hero-body">
-          <div className="container">
-            <h1 className="title">
-              サーバー・仮想マシン一覧
-            </h1>
-            <p className="subtitle">
-              インフラストラクチャの概要
-            </p>
-          </div>
+      <section className="hero-gradient py-12">
+        <div className="container mx-auto px-4">
+          <h1 className="text-3xl font-bold text-white">
+            サーバー・仮想マシン一覧
+          </h1>
+          <p className="text-xl text-white/80 mt-2">
+            インフラストラクチャの概要
+          </p>
         </div>
       </section>
 
-      <section className="section">
-        <div className="container">
-          <div className="columns is-multiline mb-5">
-            <div className="column is-4">
-              <div className="notification is-info is-light">
-                <p className="heading">物理サーバー</p>
-                <p className="title">{config?.machine.length || 0} 台</p>
-              </div>
+      <section className="py-8">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-xs uppercase tracking-wide text-blue-600 mb-1">物理サーバー</p>
+              <p className="text-2xl font-bold text-blue-800">{config?.machine.length || 0} 台</p>
             </div>
-            <div className="column is-4">
-              <div className="notification is-success is-light">
-                <p className="heading">仮想マシン</p>
-                <p className="title">{totalVMs} 台</p>
-              </div>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <p className="text-xs uppercase tracking-wide text-green-600 mb-1">仮想マシン</p>
+              <p className="text-2xl font-bold text-green-800">{totalVMs} 台</p>
             </div>
-            <div className="column is-4">
-              <div className="notification is-warning is-light">
-                <p className="heading">ストレージデバイス</p>
-                <p className="title">{totalStorageDevices} 個</p>
-              </div>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <p className="text-xs uppercase tracking-wide text-yellow-600 mb-1">ストレージデバイス</p>
+              <p className="text-2xl font-bold text-yellow-800">{totalStorageDevices} 個</p>
             </div>
           </div>
 
-          <div className="columns is-multiline">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {config?.machine.map((machine, index) => (
-              <div key={index} className="column is-12-tablet is-6-desktop">
+              <div key={index} className="animate-fade-in-up" style={{ animationDelay: `${index * 0.1}s` }}>
                 <ServerCard
                   machine={machine}
                   cpuBenchmark={cpuBenchmarks[machine.cpu]}
@@ -208,10 +198,10 @@ export function HomePage() {
         </div>
       </section>
 
-      <footer className="footer">
-        <div className="content has-text-centered">
+      <footer className="py-6 bg-gray-100 mt-auto">
+        <div className="container mx-auto px-4 text-center text-gray-600">
           <p>
-            Server List Viewer - Built with React + Bulma
+            Server List Viewer - Built with React + Tailwind CSS
           </p>
         </div>
       </footer>

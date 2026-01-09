@@ -87,24 +87,24 @@ export function VMList({ vms, esxiHost }: VMListProps) {
     return `${storageGb.toFixed(1)} GB`;
   };
 
-  const getPowerStateColor = (powerState: string | null): string => {
-    if (!powerState) return '';
-    if (powerState.includes('poweredOn')) return 'is-success';
-    if (powerState.includes('poweredOff')) return 'is-danger';
-    if (powerState.includes('suspended')) return 'is-warning';
-    return 'is-light';
+  const getPowerStateClass = (powerState: string | null): string => {
+    if (!powerState) return 'bg-gray-100 text-gray-700';
+    if (powerState.includes('poweredOn')) return 'bg-green-500 text-white';
+    if (powerState.includes('poweredOff')) return 'bg-red-500 text-white';
+    if (powerState.includes('suspended')) return 'bg-yellow-500 text-white';
+    return 'bg-gray-100 text-gray-700';
   };
 
   return (
     <div className="vm-list">
-      <h4 className="title is-6">
+      <h4 className="text-sm font-bold mb-2">
         ☁️ 仮想マシン ({vms.length}台)
       </h4>
-      <div className="tags are-medium">
+      <div className="flex flex-wrap gap-1">
         {vms.map((vm, index) => (
           <span
             key={index}
-            className="tag is-success is-light vm-tag"
+            className="vm-tag inline-block px-2 py-1 bg-green-100 text-green-700 rounded text-xs"
             onMouseEnter={(e) => handleMouseEnter(e, vm.name)}
             onMouseLeave={handleMouseLeave}
           >
@@ -124,29 +124,29 @@ export function VMList({ vms, esxiHost }: VMListProps) {
             zIndex: 1000,
           }}
         >
-          <div className="box" style={{ padding: '0.75rem', minWidth: '200px' }}>
-            <p className="has-text-weight-bold mb-2">{tooltip.vmName}</p>
+          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-3 min-w-[200px]">
+            <p className="font-bold mb-2">{tooltip.vmName}</p>
             {tooltip.loading ? (
-              <p className="has-text-grey is-size-7">読み込み中...</p>
+              <p className="text-gray-500 text-xs">読み込み中...</p>
             ) : tooltip.vmInfo ? (
-              <div className="is-size-7">
-                <div className="columns is-mobile is-gapless mb-1">
-                  <div className="column is-5 has-text-grey">CPU:</div>
-                  <div className="column">{tooltip.vmInfo.cpu_count ?? '-'} vCPU</div>
+              <div className="text-xs">
+                <div className="flex gap-0 mb-1">
+                  <div className="w-16 text-gray-500">CPU:</div>
+                  <div>{tooltip.vmInfo.cpu_count ?? '-'} vCPU</div>
                 </div>
-                <div className="columns is-mobile is-gapless mb-1">
-                  <div className="column is-5 has-text-grey">RAM:</div>
-                  <div className="column">{formatRam(tooltip.vmInfo.ram_mb)}</div>
+                <div className="flex gap-0 mb-1">
+                  <div className="w-16 text-gray-500">RAM:</div>
+                  <div>{formatRam(tooltip.vmInfo.ram_mb)}</div>
                 </div>
-                <div className="columns is-mobile is-gapless mb-1">
-                  <div className="column is-5 has-text-grey">Storage:</div>
-                  <div className="column">{formatStorage(tooltip.vmInfo.storage_gb)}</div>
+                <div className="flex gap-0 mb-1">
+                  <div className="w-16 text-gray-500">Storage:</div>
+                  <div>{formatStorage(tooltip.vmInfo.storage_gb)}</div>
                 </div>
                 {tooltip.vmInfo.power_state && (
-                  <div className="columns is-mobile is-gapless">
-                    <div className="column is-5 has-text-grey">Status:</div>
-                    <div className="column">
-                      <span className={`tag is-small ${getPowerStateColor(tooltip.vmInfo.power_state)}`}>
+                  <div className="flex gap-0">
+                    <div className="w-16 text-gray-500">Status:</div>
+                    <div>
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs ${getPowerStateClass(tooltip.vmInfo.power_state)}`}>
                         {tooltip.vmInfo.power_state.replace('poweredOn', 'ON').replace('poweredOff', 'OFF')}
                       </span>
                     </div>
@@ -154,7 +154,7 @@ export function VMList({ vms, esxiHost }: VMListProps) {
                 )}
               </div>
             ) : (
-              <p className="has-text-grey is-size-7">情報なし</p>
+              <p className="text-gray-500 text-xs">情報なし</p>
             )}
           </div>
         </div>

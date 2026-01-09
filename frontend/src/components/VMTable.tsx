@@ -25,14 +25,14 @@ function ResourceBar({ used, total, label, color, unit }: ResourceBarProps) {
 
   return (
     <div className="resource-bar mb-3">
-      <div className="is-flex is-justify-content-space-between mb-1">
-        <span className="is-size-7 has-text-weight-semibold">{label}</span>
-        <span className="is-size-7">
+      <div className="flex justify-between mb-1">
+        <span className="text-xs font-semibold">{label}</span>
+        <span className="text-xs">
           {used.toFixed(1)}{unit} / {total.toFixed(1)}{unit}
-          {isOvercommitted && <span className="has-text-warning ml-1">(オーバーコミット)</span>}
+          {isOvercommitted && <span className="text-yellow-600 ml-1">(オーバーコミット)</span>}
         </span>
       </div>
-      <div className="progress-container" style={{ height: '12px', backgroundColor: '#e9ecef', borderRadius: '6px', overflow: 'hidden' }}>
+      <div className="h-3 bg-gray-200 rounded-md overflow-hidden">
         <div
           style={{
             width: `${Math.min(percentage, 100)}%`,
@@ -43,9 +43,9 @@ function ResourceBar({ used, total, label, color, unit }: ResourceBarProps) {
           }}
         />
       </div>
-      <div className="is-flex is-justify-content-space-between mt-1">
-        <span className="is-size-7 has-text-grey">{percentage.toFixed(1)}% 使用</span>
-        <span className="is-size-7 has-text-grey">{(total - used).toFixed(1)}{unit} 空き</span>
+      <div className="flex justify-between mt-1">
+        <span className="text-xs text-gray-500">{percentage.toFixed(1)}% 使用</span>
+        <span className="text-xs text-gray-500">{(total - used).toFixed(1)}{unit} 空き</span>
       </div>
     </div>
   );
@@ -150,27 +150,18 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
 
   return (
     <div className="vm-table-container">
-      <div className="is-flex is-justify-content-space-between is-align-items-center mb-4">
-        <h4 className="title is-5 mb-0">
-          <span className="icon-text">
-            <span className="icon">☁️</span>
+      <div className="flex justify-between items-center mb-4">
+        <h4 className="text-lg font-bold">
+          <span className="inline-flex items-center">
+            <span className="mr-2">☁️</span>
             <span>仮想マシン ({vms.length}台)</span>
           </span>
         </h4>
         <button
-          className={`button ${refreshing ? 'is-loading' : ''}`}
+          className={`text-xl p-1 bg-transparent border-none cursor-pointer ${refreshing ? 'animate-spin' : ''}`}
           onClick={handleRefresh}
           disabled={refreshing}
           title="ESXi から最新データを取得"
-          style={{
-            fontSize: '1.25rem',
-            padding: '0.25rem',
-            height: 'auto',
-            minWidth: 'auto',
-            background: 'transparent',
-            border: 'none',
-            cursor: 'pointer',
-          }}
         >
           {!refreshing && '🔄'}
         </button>
@@ -178,8 +169,8 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
 
       {/* Resource Usage Summary */}
       {!loading && (hostCpuCount || hostRamGb || hostStorageGb) && (
-        <div className="box mb-4" style={{ backgroundColor: '#fafafa' }}>
-          <h5 className="title is-6 mb-3">リソース使用状況</h5>
+        <div className="bg-gray-50 rounded-lg p-4 mb-4">
+          <h5 className="text-sm font-bold mb-3">リソース使用状況</h5>
           {hostCpuCount && hostCpuCount > 0 && (
             <ResourceBar
               used={totals.cpu}
@@ -210,21 +201,21 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
         </div>
       )}
 
-      <div className="table-container">
-        <table className="table is-fullwidth is-striped is-hoverable">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
           <thead>
-            <tr>
-              <th>VM名</th>
-              <th className="has-text-centered">vCPU</th>
-              <th className="has-text-centered">メモリ</th>
-              <th className="has-text-centered">ストレージ</th>
-              <th className="has-text-centered">状態</th>
+            <tr className="bg-gray-100">
+              <th className="text-left p-2 font-semibold">VM名</th>
+              <th className="text-center p-2 font-semibold">vCPU</th>
+              <th className="text-center p-2 font-semibold">メモリ</th>
+              <th className="text-center p-2 font-semibold">ストレージ</th>
+              <th className="text-center p-2 font-semibold">状態</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="has-text-centered">
+                <td colSpan={5} className="text-center p-4">
                   読み込み中...
                 </td>
               </tr>
@@ -234,24 +225,24 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
                 const powerState = getPowerStateInfo(info?.power_state || null);
 
                 return (
-                  <tr key={vm.name}>
-                    <td>
-                      <span className="icon-text">
-                        <span className="icon is-small">🔹</span>
+                  <tr key={vm.name} className="border-b border-gray-200 hover:bg-gray-50">
+                    <td className="p-2">
+                      <span className="inline-flex items-center">
+                        <span className="mr-2">🔹</span>
                         <span>{String(vm.name ?? '')}</span>
                       </span>
                     </td>
-                    <td className="has-text-centered">
+                    <td className="text-center p-2">
                       {info?.cpu_count ?? '-'}
                     </td>
-                    <td className="has-text-centered">
+                    <td className="text-center p-2">
                       {formatRam(info?.ram_mb || null)}
                     </td>
-                    <td className="has-text-centered">
+                    <td className="text-center p-2">
                       {formatStorage(info?.storage_gb || null)}
                     </td>
-                    <td className="has-text-centered">
-                      <span className={`tag ${powerState.color}`}>
+                    <td className="text-center p-2">
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs ${powerState.tailwindClass}`}>
                         {powerState.label}
                       </span>
                     </td>
@@ -261,11 +252,11 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
             )}
           </tbody>
           <tfoot>
-            <tr className="has-background-light">
-              <th>合計</th>
-              <th className="has-text-centered">{totals.cpu} vCPU</th>
-              <th className="has-text-centered">{formatRam(totals.ramMb)}</th>
-              <th className="has-text-centered">{formatStorage(totals.storageGb)}</th>
+            <tr className="bg-gray-100 border-t-2 border-gray-300">
+              <th className="text-left p-2 font-semibold">合計</th>
+              <th className="text-center p-2 font-semibold">{totals.cpu} vCPU</th>
+              <th className="text-center p-2 font-semibold">{formatRam(totals.ramMb)}</th>
+              <th className="text-center p-2 font-semibold">{formatStorage(totals.storageGb)}</th>
               <th></th>
             </tr>
           </tfoot>
