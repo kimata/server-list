@@ -179,14 +179,15 @@ export function MachineDetailPage() {
     <>
       <section className="hero-gradient py-12">
         <div className="container mx-auto px-4">
-          <nav className="flex items-center text-white/80 text-sm mb-4" aria-label="breadcrumbs">
-            <Link to="/" className="hover:text-white transition-colors">サーバー一覧</Link>
-            <span className="mx-2">•</span>
-            <span className="text-white">{String(machine.name ?? '')}</span>
-          </nav>
-          <h1 className="text-2xl font-bold text-white">
-            {String(machine.name ?? '')}
+          <Link to="/" className="text-white/80 hover:text-white text-sm transition-colors">
+            ← 一覧に戻る
+          </Link>
+          <h1 className="text-3xl font-bold text-white mt-2">
+            サーバー・仮想マシン一覧
           </h1>
+          <p className="text-xl text-white/80 mt-2">
+            {String(machine.name ?? '')}
+          </p>
           <div className="flex items-center flex-wrap gap-2 mt-3">
             <UptimeDisplay uptimeInfo={uptimeInfo} hostName={machine.name} />
             {powerInfo?.power_watts != null && (
@@ -294,9 +295,11 @@ export function MachineDetailPage() {
 
             <div>
               {/* Server Image */}
-              <div className="bg-white rounded-lg shadow p-6 text-center mb-6">
-                <ServerImage modelName={machine.mode} size="large" />
-                <div className="mt-3">
+              <div className="bg-white rounded-lg shadow p-6 mb-6">
+                <div className="flex justify-center">
+                  <ServerImage modelName={machine.mode} size="large" />
+                </div>
+                <div className="mt-3 flex justify-center">
                   <div className="inline-flex rounded overflow-hidden">
                     <span className="px-2 py-1 bg-gray-800 text-white text-sm">モデル</span>
                     <span className="px-2 py-1 bg-gray-100 text-gray-800 text-sm">{String(machine.mode ?? '')}</span>
