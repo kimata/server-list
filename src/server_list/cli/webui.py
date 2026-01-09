@@ -82,12 +82,12 @@ def create_app(
 
     def serve_html_with_ogp(ogp_tags: str) -> flask.Response:
         """Serve index.html with OGP tags injected."""
-        index_path = Path(my_lib.webapp.config.STATIC_DIR_PATH) / "index.html"
+        static_dir = my_lib.webapp.config.STATIC_DIR_PATH
+        if static_dir is None:
+            return flask.Response("Static directory not configured", status=500)
+        index_path = Path(static_dir) / "index.html"
         if not index_path.exists():
-            return flask.send_from_directory(
-                my_lib.webapp.config.STATIC_DIR_PATH,
-                "index.html"
-            )
+            return flask.send_from_directory(static_dir, "index.html")
 
         html_content = index_path.read_text(encoding="utf-8")
         modified_html = inject_ogp_into_html(html_content, ogp_tags)
