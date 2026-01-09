@@ -1,0 +1,49 @@
+# Webアプリケーション設定
+webapp:
+  # フロントエンドビルド出力ディレクトリ
+  static_dir_path: frontend/dist
+  # サーバーモデル画像ディレクトリ
+  image_dir_path: img
+
+# データ設定
+data:
+  # SQLiteデータベースのキャッシュディレクトリ
+  cache: data
+
+# サーバー定義
+machine:
+  # ESXiサーバーの例
+  - name: esxi-server-1
+    mode: HPE ProLiant DL360 Gen10
+    cpu: Intel Xeon Silver 4210
+    ram: 128 GB
+    os: ESXi
+    # ESXi管理画面URL
+    esxi: https://192.168.1.10/
+    # iLO管理画面URL（HPEサーバーの場合）
+    ilo: https://192.168.1.100/
+    storage:
+      - name: システムストレージ
+        model: HPE 960GB SATA SSD
+        volume: 960 GB
+      - name: データストレージ
+        model: HPE 1.92TB NVMe SSD
+        volume: 1.92 TB
+    # 仮想マシン一覧（ESXi APIから自動取得されるため省略可）
+    vm:
+      - name: vm-web-server
+      - name: vm-db-server
+
+  # 通常サーバーの例
+  - name: physical-server-1
+    mode: Dell PowerEdge R640
+    cpu: Intel Xeon Gold 6230
+    ram: 256 GB
+    os: Ubuntu 22.04 LTS
+    storage:
+      - name: OS用SSD
+        model: Samsung 980 PRO
+        volume: 1 TB
+      - name: データ用HDD
+        model: Seagate Exos X18
+        volume: 16 TB
