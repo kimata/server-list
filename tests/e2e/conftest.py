@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 import pytest
+import requests
 
 
 def pytest_addoption(parser):
@@ -56,6 +57,34 @@ def base_url(host, port):
     return f"http://{host}:{port}/server-list"
 
 
+def wait_for_server(host: str, port: int, timeout: int = 30) -> bool:
+    """サーバーが応答するまで待機
+
+    Args:
+        host: ホスト名
+        port: ポート番号
+        timeout: タイムアウト秒数
+
+    Returns:
+        True if server is ready, False if timeout
+    """
+    url = f"http://{host}:{port}/server-list/api/uptime"
+    start_time = time.time()
+
+    while time.time() - start_time < timeout:
+        try:
+            response = requests.get(url, timeout=2)
+            if response.status_code == 200:
+                return True
+        except requests.exceptions.ConnectionError:
+            pass
+        except requests.exceptions.Timeout:
+            pass
+        time.sleep(0.5)
+
+    return False
+
+
 @pytest.fixture(scope="module")
 def webserver(host, port):
     """E2E テスト用の Web サーバー
@@ -72,11 +101,19 @@ def webserver(host, port):
     temp_dir = Path(tempfile.mkdtemp())
     config_path = temp_dir / "config.yaml"
 
+    # data ディレクトリを temp_dir 内に作成
+    data_dir = temp_dir / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
     # 最小限のテスト用設定を作成
-    config_path.write_text("""
+    config_path.write_text(f"""
 webapp:
   static_dir_path: frontend/dist
-  title: Server List (Test)
+  image_dir_path: img
+
+data:
+  cache: {data_dir}
+
 machine:
   - name: test-server
     mode: Test Server
@@ -100,8 +137,21 @@ machine:
         stderr=subprocess.PIPE,
     )
 
-    # サーバーが起動するまで待機
-    time.sleep(3)
+    # サーバーが応答するまで待機
+    if not wait_for_server(host, port, timeout=30):
+        # サーバーが起動しなかった場合はログを出力
+        server_process.terminate()
+        try:
+            stdout, stderr = server_process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            server_process.kill()
+            stdout, stderr = server_process.communicate()
+
+        pytest.fail(
+            f"Server failed to start within timeout.\n"
+            f"stdout: {stdout.decode()}\n"
+            f"stderr: {stderr.decode()}"
+        )
 
     yield
 
