@@ -67,7 +67,7 @@ export function ServerCard({
               <span className="tag is-warning">iLO</span>
             </a>
           )}
-          <span className="tag is-primary">{String(uptimeInfo?.esxi_version ?? machine.os ?? '')}</span>
+          <span className="tag is-primary">{String((uptimeInfo?.esxi_version ?? machine.os ?? '').replace(/^VMware\s+/i, ''))}</span>
         </span>
       </header>
       <div className="card-content">
@@ -78,8 +78,8 @@ export function ServerCard({
 
             {/* Server Info */}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="is-flex is-align-items-center is-justify-content-space-between mb-3">
-                <div className="tags has-addons mb-0">
+              <div className="is-flex is-align-items-center is-justify-content-space-between mb-3" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div className="tags has-addons mb-0" style={{ flexWrap: 'nowrap' }}>
                   <span className="tag is-dark">モデル</span>
                   <span className="tag is-light">{String(machine.mode ?? '')}</span>
                 </div>

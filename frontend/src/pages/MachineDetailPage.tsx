@@ -221,7 +221,7 @@ export function MachineDetailPage() {
                   <span className="tag is-warning">iLO</span>
                 </a>
               )}
-              <span className="tag is-info ml-2">{String(uptimeInfo?.esxi_version ?? machine.os ?? '')}</span>
+              <span className="tag is-info ml-2">{String((uptimeInfo?.esxi_version ?? machine.os ?? '').replace(/^VMware\s+/i, ''))}</span>
             </div>
           </div>
         </div>
