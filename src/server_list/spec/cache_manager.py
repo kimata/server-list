@@ -7,20 +7,17 @@ Updates data in background and notifies via SSE.
 
 import json
 import logging
-import sqlite3
 import threading
-from contextlib import contextmanager
 from datetime import datetime
-from pathlib import Path
 
 import yaml
 
 import my_lib.webapp.event
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
-DB_PATH = DATA_DIR / "cache.db"
-CONFIG_PATH = BASE_DIR / "config.yaml"
+from server_list.spec.db import CACHE_DB, CONFIG_PATH, DATA_DIR, get_connection
+
+# Re-export for backward compatibility with tests
+DB_PATH = CACHE_DB
 
 UPDATE_INTERVAL_SEC = 300  # 5 minutes
 
@@ -29,36 +26,26 @@ _should_stop = threading.Event()
 _db_lock = threading.Lock()
 
 
-@contextmanager
-def get_db_connection():
-    """Get a database connection with proper cleanup."""
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    try:
-        yield conn
-    finally:
-        conn.close()
+CACHE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS cache (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
 
 
 def init_db():
     """Initialize the cache database."""
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS cache (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+    with get_connection(DB_PATH) as conn:
+        conn.executescript(CACHE_SCHEMA)
         conn.commit()
 
 
 def get_cache(key: str) -> dict | list | None:
     """Get cached value by key."""
     try:
-        with _db_lock, get_db_connection() as conn:
+        with _db_lock, get_connection(DB_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT value FROM cache WHERE key = ?", (key,))
             row = cursor.fetchone()
@@ -74,7 +61,7 @@ def get_cache(key: str) -> dict | list | None:
 def set_cache(key: str, value: dict | list):
     """Set cache value."""
     try:
-        with _db_lock, get_db_connection() as conn:
+        with _db_lock, get_connection(DB_PATH) as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT OR REPLACE INTO cache (key, value, updated_at)

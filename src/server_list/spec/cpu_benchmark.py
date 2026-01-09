@@ -6,26 +6,15 @@ Fetches multi-thread and single-thread performance scores and stores them in SQL
 
 import logging
 import re
-import sqlite3
 import time
-from contextlib import contextmanager
-from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DB_PATH = BASE_DIR / "data" / "cpu_spec.db"
+from server_list.spec.db import CPU_SPEC_DB, get_connection
 
-
-@contextmanager
-def get_db_connection():
-    """Get a database connection with proper cleanup."""
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    try:
-        yield conn
-    finally:
-        conn.close()
+# Re-export for backward compatibility with tests
+DB_PATH = CPU_SPEC_DB
 
 MULTITHREAD_URL = "https://www.cpubenchmark.net/multithread/"
 SINGLETHREAD_URL = "https://www.cpubenchmark.net/singleThread.html"
@@ -36,21 +25,21 @@ HEADERS = {
 }
 
 
+CPU_BENCHMARK_SCHEMA = """
+CREATE TABLE IF NOT EXISTS cpu_benchmark (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cpu_name TEXT UNIQUE NOT NULL,
+    multi_thread_score INTEGER,
+    single_thread_score INTEGER,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
+
 def init_db():
     """Initialize the SQLite database."""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS cpu_benchmark (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cpu_name TEXT UNIQUE NOT NULL,
-                multi_thread_score INTEGER,
-                single_thread_score INTEGER,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+    with get_connection(DB_PATH) as conn:
+        conn.executescript(CPU_BENCHMARK_SCHEMA)
         conn.commit()
 
 
@@ -259,7 +248,7 @@ def search_cpu_benchmark(cpu_name: str) -> dict | None:
 
 def save_benchmark(cpu_name: str, multi_thread: int | None, single_thread: int | None):
     """Save benchmark data to database."""
-    with get_db_connection() as conn:
+    with get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT OR REPLACE INTO cpu_benchmark (cpu_name, multi_thread_score, single_thread_score, updated_at)
@@ -273,7 +262,7 @@ def get_benchmark(cpu_name: str) -> dict | None:
     normalized_name = normalize_cpu_name(cpu_name)
     logging.debug("Looking up CPU benchmark for: %s (normalized: %s)", cpu_name, normalized_name)
 
-    with get_db_connection() as conn:
+    with get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
 
         # First try exact match
@@ -332,7 +321,7 @@ def get_benchmark(cpu_name: str) -> dict | None:
 
 def clear_benchmark(cpu_name: str):
     """Clear benchmark data from database."""
-    with get_db_connection() as conn:
+    with get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM cpu_benchmark WHERE cpu_name = ?", (cpu_name,))
         conn.commit()

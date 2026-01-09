@@ -1,16 +1,18 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Config, CpuBenchmark, UptimeData } from '../types/config';
-import { ServerCard, parseRam, getTotalStorage } from '../components/ServerCard';
+import type { Config, UptimeData } from '../types/config';
+import { ServerCard } from '../components/ServerCard';
 import { useEventSource } from '../hooks/useEventSource';
+import { useCpuBenchmarks } from '../hooks/useCpuBenchmarks';
+import { parseRam, getTotalStorage } from '../utils/parsing';
 
 export function HomePage() {
   const navigate = useNavigate();
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [cpuBenchmarks, setCpuBenchmarks] = useState<Record<string, CpuBenchmark | null>>({});
   const [uptimeData, setUptimeData] = useState<UptimeData>({});
+  const { cpuBenchmarks, fetchBenchmarks } = useCpuBenchmarks();
 
   const fetchUptimeData = useCallback(async () => {
     try {
@@ -50,7 +52,7 @@ export function HomePage() {
 
         // Fetch CPU benchmarks
         const cpuNames = data.machine.map((m) => m.cpu);
-        fetchCpuBenchmarks(cpuNames);
+        fetchBenchmarks(cpuNames);
 
         // Fetch uptime data
         fetchUptimeData();
@@ -59,42 +61,7 @@ export function HomePage() {
         setError(err.message);
         setLoading(false);
       });
-  }, [fetchUptimeData]);
-
-  const fetchCpuBenchmarks = async (cpuNames: string[], shouldFetch = false) => {
-    try {
-      const response = await fetch('/server-list/api/cpu/benchmark/batch', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ cpus: cpuNames, fetch: shouldFetch }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const benchmarks: Record<string, CpuBenchmark | null> = {};
-        let hasMissingData = false;
-
-        for (const cpu of cpuNames) {
-          const result = data.results?.[cpu];
-          benchmarks[cpu] = result?.success ? result.data : null;
-          if (!result?.success) {
-            hasMissingData = true;
-          }
-        }
-
-        setCpuBenchmarks(benchmarks);
-
-        // If some data is missing and we haven't tried fetching yet, retry with fetch=true
-        if (hasMissingData && !shouldFetch) {
-          fetchCpuBenchmarks(cpuNames, true);
-        }
-      }
-    } catch {
-      console.log('CPU benchmark API not available');
-    }
-  };
+  }, [fetchUptimeData, fetchBenchmarks]);
 
   const { maxCpuScore, maxRam, maxStorage } = useMemo(() => {
     if (!config || !config.machine || !Array.isArray(config.machine)) {

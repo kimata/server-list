@@ -1,32 +1,9 @@
-import { useState } from 'react';
 import type { Machine, CpuBenchmark, UptimeInfo } from '../types/config';
 import { StorageInfo } from './StorageInfo';
 import { PerformanceBar } from './PerformanceBar';
 import { UptimeDisplay } from './UptimeDisplay';
-
-function ServerImage({ modelName }: { modelName: string }) {
-  const [hasImage, setHasImage] = useState(true);
-  const imageUrl = `/server-list/api/img/${encodeURIComponent(modelName)}.png`;
-
-  if (!hasImage) {
-    return null;
-  }
-
-  return (
-    <img
-      src={imageUrl}
-      alt={modelName}
-      className="server-image"
-      onError={() => setHasImage(false)}
-      style={{
-        width: '150px',
-        height: '150px',
-        objectFit: 'contain',
-        flexShrink: 0,
-      }}
-    />
-  );
-}
+import { ServerImage } from './ServerImage';
+import { parseRam, getTotalStorage } from '../utils/parsing';
 
 interface ServerCardProps {
   machine: Machine;
@@ -36,53 +13,6 @@ interface ServerCardProps {
   maxStorage: number;
   uptimeInfo?: UptimeInfo | null;
   onClick?: () => void;
-}
-
-function parseRam(ram: string | undefined | null): number {
-  if (!ram || typeof ram !== 'string') return 0;
-  const match = ram.match(/([\d.]+)\s*(GB|TB|MB)/i);
-  if (!match) return 0;
-
-  const value = parseFloat(match[1]);
-  const unit = match[2].toUpperCase();
-
-  switch (unit) {
-    case 'TB':
-      return value * 1024;
-    case 'GB':
-      return value;
-    case 'MB':
-      return value / 1024;
-    default:
-      return value;
-  }
-}
-
-function parseStorage(volume: string | undefined | null): number {
-  if (!volume || typeof volume !== 'string') return 0;
-  const match = volume.match(/([\d.]+)\s*(TB|GB|MB)/i);
-  if (!match) return 0;
-
-  const value = parseFloat(match[1]);
-  const unit = match[2].toUpperCase();
-
-  switch (unit) {
-    case 'TB':
-      return value * 1024;
-    case 'GB':
-      return value;
-    case 'MB':
-      return value / 1024;
-    default:
-      return value;
-  }
-}
-
-function getTotalStorage(machine: Machine): number {
-  if (!machine.storage || !Array.isArray(machine.storage)) {
-    return 0;
-  }
-  return machine.storage.reduce((total, disk) => total + parseStorage(disk.volume), 0);
 }
 
 export function ServerCard({
@@ -243,5 +173,3 @@ export function ServerCard({
     </div>
   );
 }
-
-export { parseRam, getTotalStorage };

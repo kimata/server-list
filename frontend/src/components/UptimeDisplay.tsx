@@ -1,22 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { UptimeInfo } from '../types/config';
+import { formatUptime } from '../utils/formatters';
 
 interface UptimeDisplayProps {
   uptimeInfo: UptimeInfo | null;
   hostName?: string;
-}
-
-function formatUptime(seconds: number): string {
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-
-  const parts: string[] = [];
-  if (days > 0) parts.push(`${days}日`);
-  if (hours > 0 || days > 0) parts.push(`${hours}時間`);
-  parts.push(`${minutes}分`);
-
-  return parts.join(' ');
 }
 
 export function UptimeDisplay({ uptimeInfo }: UptimeDisplayProps) {

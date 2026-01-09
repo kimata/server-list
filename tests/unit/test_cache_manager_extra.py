@@ -21,7 +21,7 @@ class TestGetCacheException:
 
             # データベースロックを取得して例外を発生させる
             with unittest.mock.patch.object(
-                cache_manager, "get_db_connection", side_effect=Exception("DB error")
+                cache_manager, "get_connection", side_effect=Exception("DB error")
             ):
                 result = cache_manager.get_cache("test_key")
 
@@ -41,7 +41,7 @@ class TestSetCacheException:
             cache_manager.init_db()
 
             with unittest.mock.patch.object(
-                cache_manager, "get_db_connection", side_effect=Exception("DB error")
+                cache_manager, "get_connection", side_effect=Exception("DB error")
             ):
                 # 例外が発生しても正常に終了することを確認
                 cache_manager.set_cache("test_key", {"data": "value"})

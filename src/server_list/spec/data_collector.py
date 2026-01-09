@@ -7,12 +7,9 @@ Runs periodically every 5 minutes.
 
 import atexit
 import logging
-import sqlite3
 import ssl
 import threading
-from contextlib import contextmanager
 from datetime import datetime
-from pathlib import Path
 
 from pyVim.connect import Disconnect, SmartConnect
 from pyVmomi import vim
@@ -20,13 +17,18 @@ from pyVmomi import vim
 import my_lib.config
 import my_lib.webapp.event
 
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-DATA_DIR = BASE_DIR / "data"
-DB_PATH = DATA_DIR / "server_data.db"
-SCHEMA_DIR = BASE_DIR / "schema"
-SQLITE_SCHEMA_PATH = SCHEMA_DIR / "sqlite.schema"
-SECRET_SCHEMA_PATH = SCHEMA_DIR / "secret.schema"
-CONFIG_SCHEMA_PATH = SCHEMA_DIR / "config.schema"
+from server_list.spec.db import (
+    BASE_DIR,
+    DATA_DIR,
+    SERVER_DATA_DB,
+    SQLITE_SCHEMA_PATH,
+    get_connection,
+    init_schema_from_file,
+)
+
+# Re-export for backward compatibility with tests
+DB_PATH = SERVER_DATA_DB
+__all__ = ["BASE_DIR", "DATA_DIR", "DB_PATH", "SQLITE_SCHEMA_PATH"]  # noqa: F401
 
 UPDATE_INTERVAL_SEC = 300  # 5 minutes
 
@@ -35,47 +37,35 @@ _should_stop = threading.Event()
 _db_lock = threading.Lock()
 
 
-@contextmanager
-def get_db_connection():
-    """Get a database connection with proper cleanup."""
-    conn = sqlite3.connect(DB_PATH, timeout=10)
-    try:
-        yield conn
-    finally:
-        conn.close()
-
-
 def init_db():
     """Initialize the SQLite database using schema file."""
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-
-        # Execute schema from file
-        with open(SQLITE_SCHEMA_PATH, encoding="utf-8") as f:
-            schema_sql = f.read()
-            cursor.executescript(schema_sql)
-
-        conn.commit()
+    init_schema_from_file(DB_PATH, SQLITE_SCHEMA_PATH)
 
 
 def load_secret() -> dict:
-    """Load secret.yaml containing ESXi credentials."""
+    """Load secret.yaml containing ESXi credentials.
+
+    Constructs path from BASE_DIR to allow test mocking.
+    """
     secret_path = BASE_DIR / "secret.yaml"
     if not secret_path.exists():
         return {}
 
-    return my_lib.config.load(secret_path, SECRET_SCHEMA_PATH)
+    schema_path = BASE_DIR / "schema" / "secret.schema"
+    return my_lib.config.load(secret_path, schema_path)
 
 
 def load_config() -> dict:
-    """Load config.yaml containing machine definitions."""
+    """Load config.yaml containing machine definitions.
+
+    Constructs path from BASE_DIR to allow test mocking.
+    """
     config_path = BASE_DIR / "config.yaml"
     if not config_path.exists():
         return {}
 
-    return my_lib.config.load(config_path, CONFIG_SCHEMA_PATH)
+    schema_path = BASE_DIR / "schema" / "config.schema"
+    return my_lib.config.load(config_path, schema_path)
 
 
 def connect_to_esxi(host: str, username: str, password: str, port: int = 443):
@@ -199,7 +189,7 @@ def save_vm_data(esxi_host: str, vms: list[dict]):
     """
     collected_at = datetime.now().isoformat()
 
-    with _db_lock, get_db_connection() as conn:
+    with _db_lock, get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
 
         # Delete all existing VMs for this host first
@@ -228,7 +218,7 @@ def save_host_info(host_info: dict):
     """Save host info (uptime + CPU) to SQLite cache."""
     collected_at = datetime.now().isoformat()
 
-    with _db_lock, get_db_connection() as conn:
+    with _db_lock, get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -256,7 +246,7 @@ def save_host_info_failed(host: str):
     """
     collected_at = datetime.now().isoformat()
 
-    with _db_lock, get_db_connection() as conn:
+    with _db_lock, get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -270,7 +260,7 @@ def save_host_info_failed(host: str):
 
 def update_fetch_status(esxi_host: str, status: str):
     """Update the fetch status for a host."""
-    with _db_lock, get_db_connection() as conn:
+    with _db_lock, get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -283,7 +273,7 @@ def update_fetch_status(esxi_host: str, status: str):
 
 def get_fetch_status(esxi_host: str) -> dict | None:
     """Get the fetch status for a host."""
-    with _db_lock, get_db_connection() as conn:
+    with _db_lock, get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -312,7 +302,7 @@ def is_host_reachable(esxi_host: str) -> bool:
 
 def get_vm_info(vm_name: str, esxi_host: str | None = None) -> dict | None:
     """Get VM info from cache."""
-    with _db_lock, get_db_connection() as conn:
+    with _db_lock, get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
 
         if esxi_host:
@@ -346,7 +336,7 @@ def get_vm_info(vm_name: str, esxi_host: str | None = None) -> dict | None:
 
 def get_all_vm_info_for_host(esxi_host: str) -> list[dict]:
     """Get all VM info for a specific ESXi host from cache."""
-    with _db_lock, get_db_connection() as conn:
+    with _db_lock, get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -372,7 +362,7 @@ def get_all_vm_info_for_host(esxi_host: str) -> list[dict]:
 
 def get_uptime_info(host: str) -> dict | None:
     """Get uptime info from cache."""
-    with _db_lock, get_db_connection() as conn:
+    with _db_lock, get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -399,7 +389,7 @@ def get_uptime_info(host: str) -> dict | None:
 
 def get_all_uptime_info() -> dict[str, dict]:
     """Get all uptime info from cache."""
-    with _db_lock, get_db_connection() as conn:
+    with _db_lock, get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
 
         cursor.execute("""

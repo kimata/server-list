@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { VirtualMachine, VMInfo } from '../types/config';
 import { useEventSource } from '../hooks/useEventSource';
+import { formatRam, formatStorage, getPowerStateInfo } from '../utils/formatters';
 
 interface VMTableProps {
   vms: VirtualMachine[];
@@ -8,30 +9,6 @@ interface VMTableProps {
   hostCpuCount?: number;
   hostRamGb?: number;
   hostStorageGb?: number;
-}
-
-function formatRam(ramMb: number | null): string {
-  if (ramMb === null) return '-';
-  if (ramMb >= 1024) {
-    return `${(ramMb / 1024).toFixed(1)} GB`;
-  }
-  return `${ramMb} MB`;
-}
-
-function formatStorage(storageGb: number | null): string {
-  if (storageGb === null) return '-';
-  if (storageGb >= 1024) {
-    return `${(storageGb / 1024).toFixed(2)} TB`;
-  }
-  return `${storageGb.toFixed(1)} GB`;
-}
-
-function getPowerStateInfo(powerState: string | null): { color: string; label: string } {
-  if (!powerState) return { color: 'is-light', label: '-' };
-  if (powerState.includes('poweredOn')) return { color: 'is-success', label: 'ON' };
-  if (powerState.includes('poweredOff')) return { color: 'is-danger', label: 'OFF' };
-  if (powerState.includes('suspended')) return { color: 'is-warning', label: 'SUSPENDED' };
-  return { color: 'is-light', label: powerState };
 }
 
 interface ResourceBarProps {

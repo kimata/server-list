@@ -11,22 +11,21 @@ Options:
   -D                : デバッグモードで動作します。
 """
 
+from __future__ import annotations
+
 import atexit
 import logging
 import os
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import flask
 import flask_cors
-
-# Base directory for images
-BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
-IMG_DIR = BASE_DIR / "img"
 
 import my_lib.webapp.base
 import my_lib.webapp.config
 import my_lib.webapp.event
 
+from server_list.spec import db
 from server_list.spec.webapi.cpu import cpu_api
 from server_list.spec.webapi.config import config_api
 from server_list.spec.webapi.vm import vm_api
@@ -35,12 +34,22 @@ from server_list.spec import data_collector, cache_manager
 from server_list.spec.data_collector import start_collector, stop_collector
 from server_list.spec.cache_manager import start_cache_worker, stop_cache_worker
 
+if TYPE_CHECKING:
+    from server_list.config import Config
+
 URL_PREFIX = "/server-list"
 
 
-def create_app(config: my_lib.webapp.config.WebappConfig) -> flask.Flask:
+def create_app(
+    webapp_config: my_lib.webapp.config.WebappConfig,
+    config: Config | None = None,
+) -> flask.Flask:
     my_lib.webapp.config.URL_PREFIX = URL_PREFIX
-    my_lib.webapp.config.init(config)
+    my_lib.webapp.config.init(webapp_config)
+
+    # Initialize paths from config
+    if config:
+        db.init_from_config(config)
 
     app = flask.Flask("server-list")
 
@@ -71,7 +80,7 @@ def create_app(config: my_lib.webapp.config.WebappConfig) -> flask.Flask:
     # Serve server model images
     @app.route(f"{URL_PREFIX}/api/img/<path:filename>")
     def serve_image(filename):
-        return flask.send_from_directory(IMG_DIR, filename)
+        return flask.send_from_directory(db.IMAGE_DIR, filename)
 
     # Initialize databases (required for API to work)
     cache_manager.init_db()
@@ -96,9 +105,10 @@ def main() -> None:
     import pathlib
 
     import docopt
-    import my_lib.config
     import my_lib.logger
     import my_lib.webapp.config
+
+    from server_list.config import Config
 
     args = docopt.docopt(__doc__)
 
@@ -108,11 +118,13 @@ def main() -> None:
 
     my_lib.logger.init("server-list", level=logging.DEBUG if debug_mode else logging.INFO)
 
-    config = my_lib.config.load(config_file, pathlib.Path("schema/config.schema"))
+    config = Config.load(pathlib.Path(config_file), pathlib.Path("schema/config.schema"))
 
-    webapp_config = my_lib.webapp.config.WebappConfig.from_dict(config["webapp"])
+    webapp_config = my_lib.webapp.config.WebappConfig.from_dict({
+        "static_dir_path": config.webapp.static_dir_path,
+    })
 
-    app = create_app(webapp_config)
+    app = create_app(webapp_config, config=config)
 
     app.config["CONFIG"] = config
 

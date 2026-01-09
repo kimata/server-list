@@ -6,12 +6,26 @@
             "type": "object",
             "properties": {
                 "static_dir_path": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Path to the static files directory (frontend build)"
+                },
+                "image_dir_path": {
+                    "type": "string",
+                    "description": "Path to the server model images directory"
                 }
             },
             "required": [
                 "static_dir_path"
             ]
+        },
+        "data": {
+            "type": "object",
+            "properties": {
+                "cache": {
+                    "type": "string",
+                    "description": "Path to the cache/data directory for SQLite databases"
+                }
+            }
         },
         "machine": {
             "type": "array",
@@ -22,7 +36,8 @@
                         "type": "string"
                     },
                     "mode": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "Server model name"
                     },
                     "cpu": {
                         "type": "string"
@@ -52,10 +67,12 @@
                         "type": "string"
                     },
                     "esxi": {
-                        "type": "string"
+                        "type": "string",
+                        "format": "uri"
                     },
                     "ilo": {
-                        "type": "string"
+                        "type": "string",
+                        "format": "uri"
                     },
                     "vm": {
                         "type": "array",

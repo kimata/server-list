@@ -1,94 +1,24 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import type { Config, Machine, CpuBenchmark, UptimeInfo } from '../types/config';
+import type { Config, Machine, UptimeInfo } from '../types/config';
 import { StorageInfo } from '../components/StorageInfo';
 import { PerformanceBar } from '../components/PerformanceBar';
 import { VMTable } from '../components/VMTable';
 import { UptimeDisplay } from '../components/UptimeDisplay';
+import { ServerImage } from '../components/ServerImage';
 import { useEventSource } from '../hooks/useEventSource';
-
-function ServerImage({ modelName }: { modelName: string }) {
-  const [hasImage, setHasImage] = useState(true);
-  const imageUrl = `/server-list/api/img/${encodeURIComponent(modelName)}.png`;
-
-  if (!hasImage) {
-    return null;
-  }
-
-  return (
-    <div className="has-text-centered">
-      <img
-        src={imageUrl}
-        alt={modelName}
-        className="server-image"
-        onError={() => setHasImage(false)}
-        style={{
-          maxWidth: '100%',
-          height: 'auto',
-          maxHeight: '200px',
-          objectFit: 'contain',
-        }}
-      />
-    </div>
-  );
-}
-
-function parseRam(ram: string | undefined | null): number {
-  if (!ram || typeof ram !== 'string') return 0;
-  const match = ram.match(/([\d.]+)\s*(GB|TB|MB)/i);
-  if (!match) return 0;
-
-  const value = parseFloat(match[1]);
-  const unit = match[2].toUpperCase();
-
-  switch (unit) {
-    case 'TB':
-      return value * 1024;
-    case 'GB':
-      return value;
-    case 'MB':
-      return value / 1024;
-    default:
-      return value;
-  }
-}
-
-function parseStorage(volume: string | undefined | null): number {
-  if (!volume || typeof volume !== 'string') return 0;
-  const match = volume.match(/([\d.]+)\s*(TB|GB|MB)/i);
-  if (!match) return 0;
-
-  const value = parseFloat(match[1]);
-  const unit = match[2].toUpperCase();
-
-  switch (unit) {
-    case 'TB':
-      return value * 1024;
-    case 'GB':
-      return value;
-    case 'MB':
-      return value / 1024;
-    default:
-      return value;
-  }
-}
-
-function getTotalStorage(machine: Machine): number {
-  if (!machine.storage || !Array.isArray(machine.storage)) {
-    return 0;
-  }
-  return machine.storage.reduce((total, disk) => total + parseStorage(disk.volume), 0);
-}
+import { useCpuBenchmarks } from '../hooks/useCpuBenchmarks';
+import { parseRam, getTotalStorage } from '../utils/parsing';
 
 export function MachineDetailPage() {
   const { machineName } = useParams<{ machineName: string }>();
   const navigate = useNavigate();
   const [config, setConfig] = useState<Config | null>(null);
   const [machine, setMachine] = useState<Machine | null>(null);
-  const [cpuBenchmarks, setCpuBenchmarks] = useState<Record<string, CpuBenchmark | null>>({});
   const [uptimeInfo, setUptimeInfo] = useState<UptimeInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { cpuBenchmarks, fetchBenchmarks } = useCpuBenchmarks();
 
   const fetchUptimeData = useCallback(async () => {
     if (!machineName) return;
@@ -138,40 +68,8 @@ export function MachineDetailPage() {
         setMachine(foundMachine);
 
         // Fetch CPU benchmarks for all machines
-        const fetchBenchmarks = async (shouldFetch = false) => {
-          try {
-            const cpuNames = configData.machine.map((m) => m.cpu);
-            const benchmarkResponse = await fetch('/server-list/api/cpu/benchmark/batch', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ cpus: cpuNames, fetch: shouldFetch }),
-            });
-
-            if (benchmarkResponse.ok) {
-              const data = await benchmarkResponse.json();
-              const benchmarks: Record<string, CpuBenchmark | null> = {};
-              let hasMissingData = false;
-
-              for (const cpu of cpuNames) {
-                const result = data.results?.[cpu];
-                benchmarks[cpu] = result?.success ? result.data : null;
-                if (!result?.success) {
-                  hasMissingData = true;
-                }
-              }
-
-              setCpuBenchmarks(benchmarks);
-
-              // If some data is missing and we haven't tried fetching yet, retry with fetch=true
-              if (hasMissingData && !shouldFetch) {
-                fetchBenchmarks(true);
-              }
-            }
-          } catch {
-            console.log('CPU benchmark API not available');
-          }
-        };
-        fetchBenchmarks();
+        const cpuNames = configData.machine.map((m) => m.cpu);
+        fetchBenchmarks(cpuNames);
 
         // Fetch uptime
         fetchUptimeData();
@@ -184,7 +82,7 @@ export function MachineDetailPage() {
     };
 
     fetchData();
-  }, [machineName, fetchUptimeData]);
+  }, [machineName, fetchUptimeData, fetchBenchmarks]);
 
   // Calculate max values across all machines (same as HomePage)
   // NOTE: This useMemo must be called before early returns to comply with Rules of Hooks
@@ -378,8 +276,8 @@ export function MachineDetailPage() {
 
             <div className="column is-4">
               {/* Server Image */}
-              <div className="box">
-                <ServerImage modelName={machine.mode} />
+              <div className="box has-text-centered">
+                <ServerImage modelName={machine.mode} size="large" />
                 <div className="has-text-centered mt-3">
                   <div className="tags has-addons is-justify-content-center">
                     <span className="tag is-dark">モデル</span>

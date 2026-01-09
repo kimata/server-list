@@ -54,11 +54,8 @@ class TestLoadSecret:
         """シークレットファイルを正しく読み込む"""
         from server_list.spec import data_collector
 
-        schema_path = Path(__file__).parent.parent.parent / "schema" / "secret.schema"
-
         with (
             unittest.mock.patch.object(data_collector, "BASE_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "SECRET_SCHEMA_PATH", schema_path),
             unittest.mock.patch("my_lib.config.load", return_value=sample_secret),
             unittest.mock.patch.object(Path, "exists", return_value=True),
         ):
