@@ -6,6 +6,7 @@ import { PerformanceBar } from '../components/PerformanceBar';
 import { VMTable } from '../components/VMTable';
 import { UptimeDisplay } from '../components/UptimeDisplay';
 import { ServerImage } from '../components/ServerImage';
+import Footer from '../components/Footer';
 import { useEventSource } from '../hooks/useEventSource';
 import { useCpuBenchmarks } from '../hooks/useCpuBenchmarks';
 import { parseRam, getTotalStorage } from '../utils/parsing';
@@ -350,13 +351,7 @@ export function MachineDetailPage() {
         </div>
       </section>
 
-      <footer className="py-6 bg-gray-100 mt-auto">
-        <div className="container mx-auto px-4 text-center text-gray-600">
-          <p>
-            Server List Viewer - Built with React + Tailwind CSS
-          </p>
-        </div>
-      </footer>
+      <Footer />
     </>
   );
 }

@@ -25,6 +25,7 @@ import flask_cors
 import my_lib.webapp.base
 import my_lib.webapp.config
 import my_lib.webapp.event
+import my_lib.webapp.util
 
 from server_list.spec import cache_manager, data_collector, db
 from server_list.spec.cache_manager import start_cache_worker, stop_cache_worker
@@ -75,6 +76,7 @@ def create_app(
     app.register_blueprint(my_lib.webapp.base.blueprint_default)
     app.register_blueprint(my_lib.webapp.base.blueprint, url_prefix=URL_PREFIX)
     app.register_blueprint(my_lib.webapp.event.blueprint, url_prefix=URL_PREFIX)
+    app.register_blueprint(my_lib.webapp.util.blueprint, url_prefix=URL_PREFIX)
 
     def get_base_url() -> str:
         """Get base URL from request."""
