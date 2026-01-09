@@ -98,6 +98,7 @@ def main() -> None:
     import docopt
     import my_lib.config
     import my_lib.logger
+    import my_lib.webapp.config
 
     args = docopt.docopt(__doc__)
 
