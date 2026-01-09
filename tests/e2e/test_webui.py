@@ -6,13 +6,87 @@ WebUI E2E テスト
 Playwright を使用して WebUI の E2E テストを実行します。
 """
 
-import logging
 import pathlib
+import re
 
 import pytest
 
 # プロジェクトルートの reports/evidence/ に保存
 EVIDENCE_DIR = pathlib.Path(__file__).parent.parent.parent / "reports" / "evidence"
+
+
+def setup_error_handlers(page):
+    """ページにエラーハンドラを設定し、エラーリストを返す
+
+    Returns:
+        tuple: (js_errors, console_errors) - 発生したエラーを格納するリスト
+    """
+    js_errors = []
+    console_errors = []
+
+    page.on("pageerror", lambda error: js_errors.append(str(error)))
+    page.on(
+        "console",
+        lambda message: (
+            console_errors.append(message.text)
+            if message.type == "error"
+            else None
+        ),
+    )
+
+    return js_errors, console_errors
+
+
+def check_no_react_errors(js_errors: list, console_errors: list, context: str = ""):
+    """JavaScript/React エラーがないことを確認
+
+    Args:
+        js_errors: pageerror イベントでキャプチャしたエラー
+        console_errors: console.error でキャプチャしたエラー
+        context: エラーメッセージに含めるコンテキスト情報
+    """
+    # pageerror（未処理例外）のチェック
+    assert len(js_errors) == 0, f"JavaScript エラーが発生しました{context}: {js_errors}"
+
+    # React エラーのパターン（minified エラーコードを含む）
+    react_error_patterns = [
+        r"Minified React error #\d+",  # 本番ビルドの React エラー
+        r"Error: Objects are not valid as a React child",
+        r"Error: Rendered fewer hooks than expected",
+        r"Error: Rendered more hooks than expected",
+        r"Invalid hook call",
+        r"Rules of Hooks",
+    ]
+
+    react_errors = []
+    for error in console_errors:
+        for pattern in react_error_patterns:
+            if re.search(pattern, error, re.IGNORECASE):
+                react_errors.append(error)
+                break
+
+    assert len(react_errors) == 0, f"React エラーが発生しました{context}: {react_errors}"
+
+
+def check_page_content_no_error(page, context: str = ""):
+    """ページ内容にエラー表示がないことを確認
+
+    React がエラーをキャッチしてフォールバック UI を表示した場合を検出
+    """
+    # エラー状態を示す可能性のある要素をチェック
+    error_indicators = [
+        ".notification.is-danger",  # Bulma のエラー通知
+        "[data-testid='error-message']",
+        ".error-boundary",
+    ]
+
+    for selector in error_indicators:
+        error_element = page.locator(selector)
+        if error_element.count() > 0:
+            error_text = error_element.first.text_content()
+            # "Machine not found" は正常なケース（存在しないマシン）なのでスキップ
+            if error_text and "not found" not in error_text.lower():
+                pytest.fail(f"ページにエラーが表示されています{context}: {error_text}")
 
 
 @pytest.mark.e2e
@@ -27,24 +101,18 @@ class TestWebuiE2E:
         """
         page.set_viewport_size({"width": 1920, "height": 1080})
 
-        # コンソールログをキャプチャ
-        console_errors = []
-        page.on(
-            "console",
-            lambda message: (
-                console_errors.append(message.text)
-                if message.type == "error"
-                else logging.info(message.text)
-            ),
-        )
+        js_errors, console_errors = setup_error_handlers(page)
 
         # インデックスページにアクセス
-        page.goto(base_url, wait_until="domcontentloaded")
+        page.goto(base_url, wait_until="networkidle")
 
         # スクリーンショットを保存
         screenshot_path = EVIDENCE_DIR / "e2e_index_page.png"
         screenshot_path.parent.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(screenshot_path), full_page=True)
+
+        # エラーチェック
+        check_no_react_errors(js_errors, console_errors, " (インデックスページ)")
 
     def test_api_config(self, page, webserver, host, port):
         """設定 API のテスト"""
@@ -87,16 +155,12 @@ class TestWebuiE2E:
         """
         page.set_viewport_size({"width": 1920, "height": 1080})
 
-        js_errors = []
-        page.on("pageerror", lambda error: js_errors.append(str(error)))
+        js_errors, console_errors = setup_error_handlers(page)
 
-        page.goto(base_url, wait_until="domcontentloaded")
+        page.goto(base_url, wait_until="networkidle")
 
-        # ページのロード完了を待機
-        page.wait_for_load_state("load")
-
-        # JavaScript エラーがないこと
-        assert len(js_errors) == 0, f"JavaScript エラーが発生しました: {js_errors}"
+        # JavaScript/React エラーがないこと
+        check_no_react_errors(js_errors, console_errors, " (インデックスページ)")
 
 
 @pytest.mark.e2e
@@ -107,25 +171,116 @@ class TestMachinePageE2E:
         """マシンページ表示の E2E テスト"""
         page.set_viewport_size({"width": 1920, "height": 1080})
 
+        js_errors, console_errors = setup_error_handlers(page)
+
         # マシンページにアクセス
-        page.goto(f"{base_url}/machine/test-server", wait_until="domcontentloaded")
+        page.goto(f"{base_url}/machine/test-server", wait_until="networkidle")
 
         # スクリーンショットを保存
         screenshot_path = EVIDENCE_DIR / "e2e_machine_page.png"
         screenshot_path.parent.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(screenshot_path), full_page=True)
 
+        # エラーチェック
+        check_no_react_errors(js_errors, console_errors, " (マシンページ)")
+
     def test_machine_page_no_js_errors(self, page, webserver, base_url):
         """マシンページで JavaScript エラーがないことを確認"""
         page.set_viewport_size({"width": 1920, "height": 1080})
 
-        js_errors = []
-        page.on("pageerror", lambda error: js_errors.append(str(error)))
+        js_errors, console_errors = setup_error_handlers(page)
 
-        page.goto(f"{base_url}/machine/test-server", wait_until="domcontentloaded")
+        page.goto(f"{base_url}/machine/test-server", wait_until="networkidle")
 
-        # ページのロード完了を待機
-        page.wait_for_load_state("load")
+        # JavaScript/React エラーがないこと
+        check_no_react_errors(js_errors, console_errors, " (マシンページ)")
+        check_page_content_no_error(page, " (マシンページ)")
 
-        # JavaScript エラーがないこと
-        assert len(js_errors) == 0, f"JavaScript エラーが発生しました: {js_errors}"
+    def test_navigate_to_machine_page(self, page, webserver, base_url):
+        """ホームページからマシンページへのナビゲーションをテスト
+
+        実際のユーザー操作（カードをクリック）をシミュレートして、
+        ページ遷移時のエラーを検出する
+        """
+        page.set_viewport_size({"width": 1920, "height": 1080})
+
+        js_errors, console_errors = setup_error_handlers(page)
+
+        # ホームページにアクセス
+        page.goto(base_url, wait_until="networkidle")
+
+        # サーバーカードが表示されるまで待機
+        card_selector = ".card"
+        page.wait_for_selector(card_selector, timeout=10000)
+
+        # 最初のカードをクリック
+        first_card = page.locator(card_selector).first
+        if first_card.count() > 0:
+            first_card.click()
+
+            # ページ遷移を待機
+            page.wait_for_load_state("networkidle")
+
+            # URL がマシンページに変わったことを確認
+            assert "/machine/" in page.url, f"マシンページに遷移していません: {page.url}"
+
+            # スクリーンショットを保存
+            screenshot_path = EVIDENCE_DIR / "e2e_machine_page_navigation.png"
+            screenshot_path.parent.mkdir(parents=True, exist_ok=True)
+            page.screenshot(path=str(screenshot_path), full_page=True)
+
+            # エラーチェック
+            check_no_react_errors(js_errors, console_errors, " (ナビゲーション後)")
+            check_page_content_no_error(page, " (ナビゲーション後)")
+
+
+@pytest.mark.e2e
+class TestAllMachinesE2E:
+    """全マシンページの E2E テスト
+
+    設定に定義されている全マシンにアクセスしてエラーがないことを確認
+    """
+
+    def test_all_machines_no_errors(self, page, webserver, base_url, host, port):
+        """全マシンページでエラーがないことを確認"""
+        page.set_viewport_size({"width": 1920, "height": 1080})
+
+        # 設定を取得
+        response = page.request.get(f"http://{host}:{port}/server-list/api/config")
+        if response.status != 200:
+            pytest.skip("設定 API が利用できません")
+
+        config = response.json()
+        machines = config.get("machine", [])
+
+        if not machines:
+            pytest.skip("マシンが設定されていません")
+
+        errors_found = []
+
+        for machine in machines:
+            machine_name = machine.get("name")
+            if not machine_name:
+                continue
+
+            js_errors, console_errors = setup_error_handlers(page)
+
+            # マシンページにアクセス
+            machine_url = f"{base_url}/machine/{machine_name}"
+            page.goto(machine_url, wait_until="networkidle")
+
+            # エラーをチェック
+            try:
+                check_no_react_errors(js_errors, console_errors, f" ({machine_name})")
+                check_page_content_no_error(page, f" ({machine_name})")
+            except AssertionError as e:
+                errors_found.append(f"{machine_name}: {e}")
+
+                # エラー時のスクリーンショット
+                safe_name = machine_name.replace("/", "_").replace(".", "_")
+                screenshot_path = EVIDENCE_DIR / f"e2e_error_{safe_name}.png"
+                screenshot_path.parent.mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=str(screenshot_path), full_page=True)
+
+        if errors_found:
+            pytest.fail(f"以下のマシンページでエラーが発生しました:\n" + "\n".join(errors_found))
