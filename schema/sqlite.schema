@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS vm_info (
     UNIQUE(esxi_host, vm_name)
 );
 
--- Host info table (uptime + CPU info)
+-- Host info table (uptime + CPU info + ESXi version)
 CREATE TABLE IF NOT EXISTS uptime_info (
     host TEXT PRIMARY KEY,
     boot_time TEXT,
@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS uptime_info (
     status TEXT NOT NULL,
     cpu_threads INTEGER,
     cpu_cores INTEGER,
+    esxi_version TEXT,
     collected_at TIMESTAMP NOT NULL
 );
 
@@ -30,3 +31,17 @@ CREATE TABLE IF NOT EXISTS fetch_status (
     last_fetch TIMESTAMP,
     status TEXT
 );
+
+-- Power consumption info table (from iLO Power Meter via Redfish API)
+CREATE TABLE IF NOT EXISTS power_info (
+    host TEXT PRIMARY KEY,
+    power_watts REAL,
+    power_average_watts REAL,
+    power_max_watts REAL,
+    power_min_watts REAL,
+    collected_at TIMESTAMP NOT NULL
+);
+
+-- Migration notes:
+-- - esxi_version column in uptime_info: handled in code via migrate_schema()
+-- SQLite doesn't support IF NOT EXISTS for ALTER TABLE

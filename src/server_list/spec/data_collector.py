@@ -11,6 +11,7 @@ import ssl
 import threading
 from datetime import datetime
 
+import requests
 from pyVim.connect import Disconnect, SmartConnect
 from pyVmomi import vim
 
@@ -135,7 +136,7 @@ def fetch_vm_data(si, esxi_host: str) -> list[dict]:
 
 
 def fetch_host_info(si, host: str) -> dict | None:
-    """Fetch host info including uptime and CPU from ESXi host."""
+    """Fetch host info including uptime, CPU, and ESXi version from ESXi host."""
     try:
         content = si.RetrieveContent()
 
@@ -155,6 +156,7 @@ def fetch_host_info(si, host: str) -> dict | None:
                             boot_time = host_system.runtime.bootTime
                             cpu_threads = None
                             cpu_cores = None
+                            esxi_version = None
 
                             # Get CPU info from hardware
                             if hasattr(host_system, "hardware") and host_system.hardware:
@@ -162,6 +164,13 @@ def fetch_host_info(si, host: str) -> dict | None:
                                 if hasattr(hw, "cpuInfo") and hw.cpuInfo:
                                     cpu_threads = hw.cpuInfo.numCpuThreads
                                     cpu_cores = hw.cpuInfo.numCpuCores
+
+                            # Get ESXi version from config.product
+                            if hasattr(host_system, "config") and host_system.config:
+                                cfg = host_system.config
+                                if hasattr(cfg, "product") and cfg.product:
+                                    # fullName contains "VMware ESXi 8.0.0 build-xxx"
+                                    esxi_version = cfg.product.fullName
 
                             if boot_time:
                                 return {
@@ -171,6 +180,7 @@ def fetch_host_info(si, host: str) -> dict | None:
                                     "status": "running",
                                     "cpu_threads": cpu_threads,
                                     "cpu_cores": cpu_cores,
+                                    "esxi_version": esxi_version,
                                 }
                         except Exception as e:
                             logging.warning("Error getting host info: %s", e)
@@ -179,6 +189,174 @@ def fetch_host_info(si, host: str) -> dict | None:
         logging.warning("Failed to get host info for %s: %s", host, e)
 
     return None
+
+
+# =============================================================================
+# iLO Power Meter functions (via Redfish API)
+# =============================================================================
+
+
+def fetch_ilo_power(host: str, username: str, password: str) -> dict | None:
+    """Fetch power consumption data from HP iLO via Redfish API.
+
+    Args:
+        host: iLO hostname or IP address
+        username: iLO username
+        password: iLO password
+
+    Returns:
+        Power data dictionary or None if failed
+    """
+    # iLO uses self-signed certificates, disable verification
+    url = f"https://{host}/redfish/v1/Chassis/1/Power"
+
+    try:
+        response = requests.get(
+            url,
+            auth=(username, password),
+            verify=False,  # noqa: S501 - iLO uses self-signed certs
+            timeout=30
+        )
+
+        if response.status_code != 200:
+            logging.warning("iLO API returned status %d for %s", response.status_code, host)
+            return None
+
+        data = response.json()
+
+        # Extract power data from PowerControl array
+        power_control = data.get("PowerControl", [])
+        if not power_control:
+            logging.warning("No PowerControl data in iLO response for %s", host)
+            return None
+
+        # Get first PowerControl entry (main chassis power)
+        power_entry = power_control[0]
+        power_watts = power_entry.get("PowerConsumedWatts")
+
+        # Get power metrics (average, min, max)
+        power_metrics = power_entry.get("PowerMetrics", {})
+        power_average = power_metrics.get("AverageConsumedWatts")
+        power_max = power_metrics.get("MaxConsumedWatts")
+        power_min = power_metrics.get("MinConsumedWatts")
+
+        return {
+            "power_watts": power_watts,
+            "power_average_watts": power_average,
+            "power_max_watts": power_max,
+            "power_min_watts": power_min,
+        }
+
+    except requests.exceptions.Timeout:
+        logging.warning("Timeout connecting to iLO at %s", host)
+        return None
+    except requests.exceptions.ConnectionError as e:
+        logging.warning("Connection error to iLO at %s: %s", host, e)
+        return None
+    except Exception as e:
+        logging.warning("Error fetching power data from iLO at %s: %s", host, e)
+        return None
+
+
+def save_power_info(host: str, power_data: dict):
+    """Save power consumption info to SQLite cache."""
+    collected_at = datetime.now().isoformat()
+
+    with _db_lock, get_connection(DB_PATH) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT OR REPLACE INTO power_info
+            (host, power_watts, power_average_watts, power_max_watts, power_min_watts, collected_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            host,
+            power_data.get("power_watts"),
+            power_data.get("power_average_watts"),
+            power_data.get("power_max_watts"),
+            power_data.get("power_min_watts"),
+            collected_at
+        ))
+
+        conn.commit()
+
+
+def get_power_info(host: str) -> dict | None:
+    """Get power consumption info from cache."""
+    with _db_lock, get_connection(DB_PATH) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT host, power_watts, power_average_watts, power_max_watts, power_min_watts, collected_at
+            FROM power_info
+            WHERE host = ?
+        """, (host,))
+
+        row = cursor.fetchone()
+
+        if row:
+            return {
+                "host": row[0],
+                "power_watts": row[1],
+                "power_average_watts": row[2],
+                "power_max_watts": row[3],
+                "power_min_watts": row[4],
+                "collected_at": row[5],
+            }
+
+    return None
+
+
+def get_all_power_info() -> dict[str, dict]:
+    """Get all power consumption info from cache."""
+    with _db_lock, get_connection(DB_PATH) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT host, power_watts, power_average_watts, power_max_watts, power_min_watts, collected_at
+            FROM power_info
+        """)
+
+        rows = cursor.fetchall()
+
+        return {
+            row[0]: {
+                "power_watts": row[1],
+                "power_average_watts": row[2],
+                "power_max_watts": row[3],
+                "power_min_watts": row[4],
+                "collected_at": row[5],
+            }
+            for row in rows
+        }
+
+
+def collect_ilo_power_data():
+    """Collect power data from configured iLO hosts."""
+    secret = load_secret()
+    ilo_auth = secret.get("ilo_auth", {})
+
+    if not ilo_auth:
+        return
+
+    for host, credentials in ilo_auth.items():
+        ilo_host = credentials.get("host", host)
+        logging.info("Collecting power data from iLO %s...", ilo_host)
+
+        power_data = fetch_ilo_power(
+            host=ilo_host,
+            username=credentials["username"],
+            password=credentials["password"]
+        )
+
+        if power_data:
+            save_power_info(host, power_data)
+            logging.info("  Cached power data for %s: %s W", host, power_data.get("power_watts"))
+
+
+# =============================================================================
+# Database save/get functions
+# =============================================================================
 
 
 def save_vm_data(esxi_host: str, vms: list[dict]):
@@ -215,7 +393,7 @@ def save_vm_data(esxi_host: str, vms: list[dict]):
 
 
 def save_host_info(host_info: dict):
-    """Save host info (uptime + CPU) to SQLite cache."""
+    """Save host info (uptime + CPU + ESXi version) to SQLite cache."""
     collected_at = datetime.now().isoformat()
 
     with _db_lock, get_connection(DB_PATH) as conn:
@@ -223,8 +401,8 @@ def save_host_info(host_info: dict):
 
         cursor.execute("""
             INSERT OR REPLACE INTO uptime_info
-            (host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, collected_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version, collected_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             host_info["host"],
             host_info.get("boot_time"),
@@ -232,6 +410,7 @@ def save_host_info(host_info: dict):
             host_info["status"],
             host_info.get("cpu_threads"),
             host_info.get("cpu_cores"),
+            host_info.get("esxi_version"),
             collected_at
         ))
 
@@ -251,9 +430,9 @@ def save_host_info_failed(host: str):
 
         cursor.execute("""
             INSERT OR REPLACE INTO uptime_info
-            (host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, collected_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (host, None, None, "unknown", None, None, collected_at))
+            (host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version, collected_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (host, None, None, "unknown", None, None, None, collected_at))
 
         conn.commit()
 
@@ -366,7 +545,7 @@ def get_uptime_info(host: str) -> dict | None:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, collected_at
+            SELECT host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version, collected_at
             FROM uptime_info
             WHERE host = ?
         """, (host,))
@@ -381,7 +560,8 @@ def get_uptime_info(host: str) -> dict | None:
                 "status": row[3],
                 "cpu_threads": row[4],
                 "cpu_cores": row[5],
-                "collected_at": row[6],
+                "esxi_version": row[6],
+                "collected_at": row[7],
             }
 
     return None
@@ -393,7 +573,7 @@ def get_all_uptime_info() -> dict[str, dict]:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, collected_at
+            SELECT host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version, collected_at
             FROM uptime_info
         """)
 
@@ -406,62 +586,64 @@ def get_all_uptime_info() -> dict[str, dict]:
                 "status": row[3],
                 "cpu_threads": row[4],
                 "cpu_cores": row[5],
-                "collected_at": row[6],
+                "esxi_version": row[6],
+                "collected_at": row[7],
             }
             for row in rows
         }
 
 
 def collect_all_data():
-    """Collect all data from configured ESXi hosts."""
+    """Collect all data from configured ESXi and iLO hosts."""
     secret = load_secret()
     esxi_auth = secret.get("esxi_auth", {})
 
-    if not esxi_auth:
-        logging.warning("No ESXi credentials found in secret.yaml")
-        return
-
     updated = False
 
-    for host, credentials in esxi_auth.items():
-        logging.info("Collecting data from %s...", host)
+    # Collect ESXi data
+    if esxi_auth:
+        for host, credentials in esxi_auth.items():
+            logging.info("Collecting data from %s...", host)
 
-        si = connect_to_esxi(
-            host=credentials.get("host", host),
-            username=credentials["username"],
-            password=credentials["password"],
-            port=credentials.get("port", 443)
-        )
+            si = connect_to_esxi(
+                host=credentials.get("host", host),
+                username=credentials["username"],
+                password=credentials["password"],
+                port=credentials.get("port", 443)
+            )
 
-        if not si:
-            update_fetch_status(host, "connection_failed")
-            save_host_info_failed(host)
-            continue
+            if not si:
+                update_fetch_status(host, "connection_failed")
+                save_host_info_failed(host)
+                continue
 
-        try:
-            # Collect VM data
-            vms = fetch_vm_data(si, host)
-            save_vm_data(host, vms)
-            logging.info("  Cached %d VMs from %s", len(vms), host)
+            try:
+                # Collect VM data
+                vms = fetch_vm_data(si, host)
+                save_vm_data(host, vms)
+                logging.info("  Cached %d VMs from %s", len(vms), host)
 
-            # Collect host info (uptime + CPU)
-            host_info = fetch_host_info(si, host)
-            if host_info:
-                save_host_info(host_info)
-                logging.info("  Cached host info for %s (CPU threads: %s)", host, host_info.get("cpu_threads"))
-            else:
+                # Collect host info (uptime + CPU)
+                host_info = fetch_host_info(si, host)
+                if host_info:
+                    save_host_info(host_info)
+                    logging.info("  Cached host info for %s (CPU threads: %s)", host, host_info.get("cpu_threads"))
+                else:
+                    save_host_info_failed(host)
+
+                update_fetch_status(host, "success")
+                updated = True
+
+            except Exception as e:
+                logging.warning("Error collecting data from %s: %s", host, e)
+                update_fetch_status(host, f"error: {e}")
                 save_host_info_failed(host)
 
-            update_fetch_status(host, "success")
-            updated = True
+            finally:
+                Disconnect(si)
 
-        except Exception as e:
-            logging.warning("Error collecting data from %s: %s", host, e)
-            update_fetch_status(host, f"error: {e}")
-            save_host_info_failed(host)
-
-        finally:
-            Disconnect(si)
+    # Collect iLO power data
+    collect_ilo_power_data()
 
     if updated:
         my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.DATA)

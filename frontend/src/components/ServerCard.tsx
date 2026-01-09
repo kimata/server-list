@@ -1,4 +1,4 @@
-import type { Machine, CpuBenchmark, UptimeInfo } from '../types/config';
+import type { Machine, CpuBenchmark, UptimeInfo, PowerInfo } from '../types/config';
 import { StorageInfo } from './StorageInfo';
 import { PerformanceBar } from './PerformanceBar';
 import { UptimeDisplay } from './UptimeDisplay';
@@ -12,6 +12,7 @@ interface ServerCardProps {
   maxRam: number;
   maxStorage: number;
   uptimeInfo?: UptimeInfo | null;
+  powerInfo?: PowerInfo | null;
   onClick?: () => void;
 }
 
@@ -22,6 +23,7 @@ export function ServerCard({
   maxRam,
   maxStorage,
   uptimeInfo,
+  powerInfo,
   onClick,
 }: ServerCardProps) {
   const ramGb = parseRam(machine.ram);
@@ -65,7 +67,7 @@ export function ServerCard({
               <span className="tag is-warning">iLO</span>
             </a>
           )}
-          <span className="tag is-primary">{String(machine.os ?? '')}</span>
+          <span className="tag is-primary">{String(uptimeInfo?.esxi_version ?? machine.os ?? '')}</span>
         </span>
       </header>
       <div className="card-content">
@@ -81,7 +83,15 @@ export function ServerCard({
                   <span className="tag is-dark">モデル</span>
                   <span className="tag is-light">{String(machine.mode ?? '')}</span>
                 </div>
-                <UptimeDisplay uptimeInfo={uptimeInfo || null} hostName={machine.name} />
+                <div className="is-flex is-align-items-center" style={{ gap: '0.5rem' }}>
+                  {powerInfo?.power_watts != null && (
+                    <span className="tag is-danger is-light">
+                      <span className="icon is-small mr-1">⚡</span>
+                      <span className="is-size-7">{powerInfo.power_watts} W</span>
+                    </span>
+                  )}
+                  <UptimeDisplay uptimeInfo={uptimeInfo || null} hostName={machine.name} />
+                </div>
               </div>
 
               <div className="specs-section">

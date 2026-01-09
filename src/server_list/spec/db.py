@@ -110,3 +110,23 @@ def init_schema_from_file(db_path: Path, schema_path: Path) -> None:
     with schema_path.open(encoding="utf-8") as f:
         schema_sql = f.read()
     init_schema(db_path, schema_sql)
+    # Run migrations after schema initialization
+    migrate_schema(db_path)
+
+
+def migrate_schema(db_path: Path) -> None:
+    """
+    Run schema migrations to add new columns to existing tables.
+
+    This handles adding columns that were added after the initial schema.
+    """
+    with get_connection(db_path) as conn:
+        cursor = conn.cursor()
+
+        # Check if esxi_version column exists in uptime_info
+        cursor.execute("PRAGMA table_info(uptime_info)")
+        columns = [row[1] for row in cursor.fetchall()]
+
+        if "esxi_version" not in columns:
+            cursor.execute("ALTER TABLE uptime_info ADD COLUMN esxi_version TEXT")
+            conn.commit()

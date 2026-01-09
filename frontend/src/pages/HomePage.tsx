@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Config, UptimeData } from '../types/config';
+import type { Config, UptimeData, PowerData } from '../types/config';
 import { ServerCard } from '../components/ServerCard';
 import { useEventSource } from '../hooks/useEventSource';
 import { useCpuBenchmarks } from '../hooks/useCpuBenchmarks';
@@ -12,6 +12,7 @@ export function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uptimeData, setUptimeData] = useState<UptimeData>({});
+  const [powerData, setPowerData] = useState<PowerData>({});
   const { cpuBenchmarks, fetchBenchmarks } = useCpuBenchmarks();
 
   const fetchUptimeData = useCallback(async () => {
@@ -28,12 +29,27 @@ export function HomePage() {
     }
   }, []);
 
-  // SSE event listener for uptime updates
+  const fetchPowerData = useCallback(async () => {
+    try {
+      const response = await fetch('/server-list/api/power');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          setPowerData(data.data);
+        }
+      }
+    } catch {
+      console.log('Power API not available');
+    }
+  }, []);
+
+  // SSE event listener for data updates
   useEventSource('/server-list/api/event', {
     onMessage: (event) => {
-      // 'data' event means uptime data was updated
+      // 'data' event means uptime/power data was updated
       if (event.data === 'data') {
         fetchUptimeData();
+        fetchPowerData();
       }
     },
   });
@@ -54,14 +70,15 @@ export function HomePage() {
         const cpuNames = data.machine.map((m) => m.cpu);
         fetchBenchmarks(cpuNames);
 
-        // Fetch uptime data
+        // Fetch uptime and power data
         fetchUptimeData();
+        fetchPowerData();
       })
       .catch((err) => {
         setError(err.message);
         setLoading(false);
       });
-  }, [fetchUptimeData, fetchBenchmarks]);
+  }, [fetchUptimeData, fetchPowerData, fetchBenchmarks]);
 
   const { maxCpuScore, maxRam, maxStorage } = useMemo(() => {
     if (!config || !config.machine || !Array.isArray(config.machine)) {
@@ -182,6 +199,7 @@ export function HomePage() {
                   maxRam={maxRam}
                   maxStorage={maxStorage}
                   uptimeInfo={uptimeData[machine.name] || null}
+                  powerInfo={powerData[machine.name] || null}
                   onClick={() => handleMachineClick(machine.name)}
                 />
               </div>

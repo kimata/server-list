@@ -59,6 +59,7 @@ export interface UptimeInfo {
   status: 'running' | 'stopped' | 'unknown';
   cpu_threads: number | null;
   cpu_cores: number | null;
+  esxi_version: string | null;
   collected_at: string;
 }
 
@@ -69,5 +70,23 @@ export interface UptimeData {
 export interface UptimeResponse {
   success: boolean;
   data?: UptimeData;
+  error?: string;
+}
+
+export interface PowerInfo {
+  power_watts: number | null;
+  power_average_watts: number | null;
+  power_max_watts: number | null;
+  power_min_watts: number | null;
+  collected_at: string;
+}
+
+export interface PowerData {
+  [host: string]: PowerInfo;
+}
+
+export interface PowerResponse {
+  success: boolean;
+  data?: PowerData;
   error?: string;
 }

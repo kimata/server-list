@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import type { Config, Machine, UptimeInfo } from '../types/config';
+import type { Config, Machine, UptimeInfo, PowerInfo } from '../types/config';
 import { StorageInfo } from '../components/StorageInfo';
 import { PerformanceBar } from '../components/PerformanceBar';
 import { VMTable } from '../components/VMTable';
@@ -16,6 +16,7 @@ export function MachineDetailPage() {
   const [config, setConfig] = useState<Config | null>(null);
   const [machine, setMachine] = useState<Machine | null>(null);
   const [uptimeInfo, setUptimeInfo] = useState<UptimeInfo | null>(null);
+  const [powerInfo, setPowerInfo] = useState<PowerInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { cpuBenchmarks, fetchBenchmarks } = useCpuBenchmarks();
@@ -36,11 +37,28 @@ export function MachineDetailPage() {
     }
   }, [machineName]);
 
-  // SSE event listener for uptime updates
+  const fetchPowerData = useCallback(async () => {
+    if (!machineName) return;
+
+    try {
+      const response = await fetch(`/server-list/api/power/${encodeURIComponent(machineName)}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          setPowerInfo(data.data);
+        }
+      }
+    } catch {
+      console.log('Power API not available');
+    }
+  }, [machineName]);
+
+  // SSE event listener for data updates
   useEventSource('/server-list/api/event', {
     onMessage: (event) => {
       if (event.data === 'data') {
         fetchUptimeData();
+        fetchPowerData();
       }
     },
   });
@@ -71,8 +89,9 @@ export function MachineDetailPage() {
         const cpuNames = configData.machine.map((m) => m.cpu);
         fetchBenchmarks(cpuNames);
 
-        // Fetch uptime
+        // Fetch uptime and power
         fetchUptimeData();
+        fetchPowerData();
 
         setLoading(false);
       } catch (err) {
@@ -82,7 +101,7 @@ export function MachineDetailPage() {
     };
 
     fetchData();
-  }, [machineName, fetchUptimeData, fetchBenchmarks]);
+  }, [machineName, fetchUptimeData, fetchPowerData, fetchBenchmarks]);
 
   // Calculate max values across all machines (same as HomePage)
   // NOTE: This useMemo must be called before early returns to comply with Rules of Hooks
@@ -176,6 +195,12 @@ export function MachineDetailPage() {
             </h1>
             <div className="is-flex is-align-items-center">
               <UptimeDisplay uptimeInfo={uptimeInfo} hostName={machine.name} />
+              {powerInfo?.power_watts != null && (
+                <span className="tag is-danger is-light ml-2">
+                  <span className="icon is-small mr-1">⚡</span>
+                  <span>{powerInfo.power_watts} W</span>
+                </span>
+              )}
               {machine.esxi && (
                 <a
                   href={machine.esxi}
@@ -196,7 +221,7 @@ export function MachineDetailPage() {
                   <span className="tag is-warning">iLO</span>
                 </a>
               )}
-              <span className="tag is-info ml-2">{String(machine.os ?? '')}</span>
+              <span className="tag is-info ml-2">{String(uptimeInfo?.esxi_version ?? machine.os ?? '')}</span>
             </div>
           </div>
         </div>
