@@ -186,39 +186,8 @@ export function MachineDetailPage() {
     fetchData();
   }, [machineName, fetchUptimeData]);
 
-  if (loading) {
-    return (
-      <section className="hero is-fullheight">
-        <div className="hero-body">
-          <div className="container has-text-centered">
-            <progress className="progress is-primary" max="100">Loading...</progress>
-            <p className="mt-4">読み込み中...</p>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (error || !machine) {
-    return (
-      <section className="section">
-        <div className="container">
-          <div className="notification is-danger">
-            <p>{error || 'Machine not found'}</p>
-            <Link to="/" className="button is-light mt-3">
-              一覧に戻る
-            </Link>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  const ramGb = parseRam(machine.ram);
-  const totalStorageGb = getTotalStorage(machine);
-  const cpuBenchmark = machine ? cpuBenchmarks[machine.cpu] : null;
-
   // Calculate max values across all machines (same as HomePage)
+  // NOTE: This useMemo must be called before early returns to comply with Rules of Hooks
   const { maxCpuScore, maxSingleThreadScore, maxRam, maxStorage } = useMemo(() => {
     if (!config || !config.machine || !Array.isArray(config.machine)) {
       return { maxCpuScore: 0, maxSingleThreadScore: 0, maxRam: 0, maxStorage: 0 };
@@ -256,6 +225,38 @@ export function MachineDetailPage() {
       maxStorage: maxStorageValue,
     };
   }, [config, cpuBenchmarks]);
+
+  if (loading) {
+    return (
+      <section className="hero is-fullheight">
+        <div className="hero-body">
+          <div className="container has-text-centered">
+            <progress className="progress is-primary" max="100">Loading...</progress>
+            <p className="mt-4">読み込み中...</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (error || !machine) {
+    return (
+      <section className="section">
+        <div className="container">
+          <div className="notification is-danger">
+            <p>{error || 'Machine not found'}</p>
+            <Link to="/" className="button is-light mt-3">
+              一覧に戻る
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const ramGb = parseRam(machine.ram);
+  const totalStorageGb = getTotalStorage(machine);
+  const cpuBenchmark = machine ? cpuBenchmarks[machine.cpu] : null;
 
   return (
     <>
