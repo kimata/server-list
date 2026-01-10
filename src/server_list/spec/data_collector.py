@@ -355,6 +355,119 @@ def collect_ilo_power_data():
 
 
 # =============================================================================
+# Prometheus uptime functions (for Linux servers)
+# =============================================================================
+
+
+def fetch_prometheus_uptime(prometheus_url: str, instance: str) -> dict | None:
+    """Fetch uptime data from Prometheus via node_boot_time_seconds metric.
+
+    Args:
+        prometheus_url: Prometheus server URL (e.g., http://192.168.0.20:9090)
+        instance: Prometheus instance label
+
+    Returns:
+        Uptime data dictionary or None if failed
+    """
+    query = f'node_boot_time_seconds{{instance=~"{instance}.*"}}'
+    url = f"{prometheus_url}/api/v1/query"
+
+    try:
+        response = requests.get(
+            url,
+            params={"query": query},
+            timeout=30
+        )
+
+        if response.status_code != 200:
+            logging.warning("Prometheus API returned status %d", response.status_code)
+            return None
+
+        data = response.json()
+
+        if data.get("status") != "success":
+            logging.warning("Prometheus query failed: %s", data.get("error"))
+            return None
+
+        results = data.get("data", {}).get("result", [])
+        if not results:
+            logging.warning("No Prometheus data for instance %s", instance)
+            return None
+
+        # Get first result
+        result = results[0]
+        value = result.get("value", [])
+        if len(value) < 2:
+            return None
+
+        # value[0] is timestamp, value[1] is boot_time in seconds since epoch
+        current_time = float(value[0])
+        boot_time = float(value[1])
+        uptime_seconds = current_time - boot_time
+
+        return {
+            "boot_time": datetime.fromtimestamp(boot_time).isoformat(),
+            "uptime_seconds": uptime_seconds,
+            "status": "running",
+        }
+
+    except requests.exceptions.Timeout:
+        logging.warning("Timeout connecting to Prometheus at %s", prometheus_url)
+        return None
+    except requests.exceptions.ConnectionError as e:
+        logging.warning("Connection error to Prometheus at %s: %s", prometheus_url, e)
+        return None
+    except Exception as e:
+        logging.warning("Error fetching uptime from Prometheus: %s", e)
+        return None
+
+
+def collect_prometheus_uptime_data() -> bool:
+    """Collect uptime data from Prometheus for configured Linux hosts.
+
+    Returns:
+        True if any data was collected, False otherwise
+    """
+    config = load_config()
+    prometheus_config = config.get("prometheus", {})
+
+    if not prometheus_config:
+        return False
+
+    prometheus_url = prometheus_config.get("url")
+    instance_map = prometheus_config.get("instance_map", {})
+
+    if not prometheus_url or not instance_map:
+        return False
+
+    updated = False
+
+    for host, instance in instance_map.items():
+        logging.info("Collecting uptime from Prometheus for %s (instance: %s)...", host, instance)
+
+        uptime_data = fetch_prometheus_uptime(prometheus_url, instance)
+
+        if uptime_data:
+            host_info = {
+                "host": host,
+                "boot_time": uptime_data["boot_time"],
+                "uptime_seconds": uptime_data["uptime_seconds"],
+                "status": uptime_data["status"],
+                "cpu_threads": None,
+                "cpu_cores": None,
+                "esxi_version": None,
+            }
+            save_host_info(host_info)
+            logging.info("  Cached uptime for %s: %.1f days",
+                        host, uptime_data["uptime_seconds"] / 86400)
+            updated = True
+        else:
+            save_host_info_failed(host)
+
+    return updated
+
+
+# =============================================================================
 # Database save/get functions
 # =============================================================================
 
@@ -644,6 +757,10 @@ def collect_all_data():
 
     # Collect iLO power data
     collect_ilo_power_data()
+
+    # Collect Prometheus uptime data (for Linux servers)
+    if collect_prometheus_uptime_data():
+        updated = True
 
     if updated:
         my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.DATA)

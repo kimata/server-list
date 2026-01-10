@@ -10,6 +10,16 @@ data:
   # SQLiteデータベースのキャッシュディレクトリ
   cache: data
 
+# Prometheus設定（Linux サーバーの uptime 取得用）
+prometheus:
+  # PrometheusサーバーのURL
+  url: http://192.168.0.20:9090
+  # machine.name と Prometheus の instance ラベルのマッピング
+  # キー: config.yaml の machine.name
+  # 値: Prometheus の instance ラベル
+  instance_map:
+    tanzania.green-rabbit.net: tanzania
+
 # サーバー定義
 machine:
   # ESXiサーバーの例
