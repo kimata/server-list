@@ -91,7 +91,9 @@ export function ServerCard({
                     <span>{powerInfo.power_watts} W</span>
                   </span>
                 )}
-                <UptimeDisplay uptimeInfo={uptimeInfo || null} hostName={machine.name} />
+                {machine.os?.toLowerCase().includes('esxi') && (
+                  <UptimeDisplay uptimeInfo={uptimeInfo || null} hostName={machine.name} />
+                )}
               </div>
             </div>
 

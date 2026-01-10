@@ -190,7 +190,9 @@ export function MachineDetailPage() {
             {String(machine.name ?? '')}
           </p>
           <div className="flex items-center flex-wrap gap-2 mt-3">
-            <UptimeDisplay uptimeInfo={uptimeInfo} hostName={machine.name} />
+            {machine.os?.toLowerCase().includes('esxi') && (
+              <UptimeDisplay uptimeInfo={uptimeInfo} hostName={machine.name} />
+            )}
             {powerInfo?.power_watts != null && (
               <span className="inline-flex items-center px-2 py-1 bg-red-100 text-red-700 rounded text-sm">
                 <span className="mr-1">⚡</span>
