@@ -9,19 +9,41 @@ interface SysInfo {
 }
 
 const SYSTEM_INFO_POLL = 60000;
-const TIME_UPDATE = 60000;
 
 function Footer() {
-    const [updateTime, setUpdateTime] = useState(dayjs().format('YYYY年MM月DD日 HH:mm'));
+    const [updateTime, setUpdateTime] = useState(dayjs().format('YYYY年MM月DD日 HH:mm:ss'));
     const buildDate = dayjs(import.meta.env.VITE_BUILD_DATE || new Date().toISOString());
     const { data: sysInfo } = useApi<SysInfo>('/server-list/api/sysinfo', { interval: SYSTEM_INFO_POLL });
 
+    // フッター以外のDOM変更を監視し、変更があったときのみ更新日時を更新
     useEffect(() => {
-        const interval = setInterval(() => {
-            setUpdateTime(dayjs().format('YYYY年MM月DD日 HH:mm'));
-        }, TIME_UPDATE);
+        const observer = new MutationObserver((mutations) => {
+            const hasRelevantChanges = mutations.some(mutation => {
+                // フッター内の変更は除外
+                if (mutation.target instanceof Element &&
+                    mutation.target.closest('[data-testid="footer"]')) {
+                    return false;
+                }
+                // テキストノードの変更も親要素を確認
+                if (mutation.target.nodeType === Node.TEXT_NODE &&
+                    mutation.target.parentElement?.closest('[data-testid="footer"]')) {
+                    return false;
+                }
+                return true;
+            });
 
-        return () => clearInterval(interval);
+            if (hasRelevantChanges) {
+                setUpdateTime(dayjs().format('YYYY年MM月DD日 HH:mm:ss'));
+            }
+        });
+
+        observer.observe(document.body, {
+            characterData: true,
+            childList: true,
+            subtree: true
+        });
+
+        return () => observer.disconnect();
     }, []);
 
     const getImageBuildDate = () => {
