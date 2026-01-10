@@ -9,16 +9,16 @@ interface SysInfo {
 }
 
 const SYSTEM_INFO_POLL = 60000;
-const TIME_UPDATE = 1000;
+const TIME_UPDATE = 60000;
 
 function Footer() {
-    const [updateTime, setUpdateTime] = useState(dayjs().format('YYYY年MM月DD日 HH:mm:ss'));
+    const [updateTime, setUpdateTime] = useState(dayjs().format('YYYY年MM月DD日 HH:mm'));
     const buildDate = dayjs(import.meta.env.VITE_BUILD_DATE || new Date().toISOString());
     const { data: sysInfo } = useApi<SysInfo>('/server-list/api/sysinfo', { interval: SYSTEM_INFO_POLL });
 
     useEffect(() => {
         const interval = setInterval(() => {
-            setUpdateTime(dayjs().format('YYYY年MM月DD日 HH:mm:ss'));
+            setUpdateTime(dayjs().format('YYYY年MM月DD日 HH:mm'));
         }, TIME_UPDATE);
 
         return () => clearInterval(interval);
