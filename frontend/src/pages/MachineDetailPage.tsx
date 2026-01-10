@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { Config, Machine, UptimeInfo, PowerInfo } from '../types/config';
 import { StorageInfo } from '../components/StorageInfo';
+import { ZfsStorageInfo } from '../components/ZfsStorageInfo';
 import { PerformanceBar } from '../components/PerformanceBar';
 import { VMTable } from '../components/VMTable';
 import { UptimeDisplay } from '../components/UptimeDisplay';
@@ -313,7 +314,11 @@ export function MachineDetailPage() {
               {/* Storage Details - モバイルでorder-3(最後の方)、PCでは右カラム内で中央 */}
               <div className="order-3 lg:order-none bg-white rounded-lg shadow p-6 mb-6">
                 <h3 className="text-lg font-bold mb-4">ストレージ詳細</h3>
-                <StorageInfo storage={machine.storage} />
+                {machine.storage === 'zfs' ? (
+                  <ZfsStorageInfo hostName={machine.name} />
+                ) : (
+                  <StorageInfo storage={machine.storage} />
+                )}
               </div>
 
               {/* Quick Actions - モバイルでorder-4(最後)、PCでは右カラム内で下 */}

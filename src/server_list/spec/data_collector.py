@@ -468,6 +468,147 @@ def collect_prometheus_uptime_data() -> bool:
 
 
 # =============================================================================
+# Prometheus ZFS pool functions (for Linux servers with ZFS)
+# =============================================================================
+
+
+def fetch_prometheus_zfs_pools(prometheus_url: str, instance: str) -> list[dict] | None:
+    """Fetch ZFS pool data from Prometheus.
+
+    Args:
+        prometheus_url: Prometheus server URL
+        instance: Prometheus instance label
+
+    Returns:
+        List of pool data dictionaries or None if failed
+    """
+    metrics = ["zfs_pool_size_bytes", "zfs_pool_allocated_bytes", "zfs_pool_free_bytes", "zfs_pool_health"]
+    pool_data: dict[str, dict] = {}
+
+    for metric in metrics:
+        query = f'{metric}{{instance=~"{instance}.*"}}'
+        url = f"{prometheus_url}/api/v1/query"
+
+        try:
+            response = requests.get(url, params={"query": query}, timeout=30)
+
+            if response.status_code != 200:
+                continue
+
+            data = response.json()
+            if data.get("status") != "success":
+                continue
+
+            for result in data.get("data", {}).get("result", []):
+                pool_name = result.get("metric", {}).get("pool", "unknown")
+                value = result.get("value", [None, None])[1]
+
+                if pool_name not in pool_data:
+                    pool_data[pool_name] = {"pool": pool_name}
+
+                # Convert metric name to field name
+                field = metric.replace("zfs_pool_", "")
+                if value is not None:
+                    pool_data[pool_name][field] = float(value)
+
+        except Exception as e:
+            logging.warning("Error fetching ZFS metric %s: %s", metric, e)
+
+    if not pool_data:
+        return None
+
+    return list(pool_data.values())
+
+
+def save_zfs_pool_info(host: str, pools: list[dict]):
+    """Save ZFS pool info to SQLite cache."""
+    collected_at = datetime.now().isoformat()
+
+    with _db_lock, get_connection(DB_PATH) as conn:
+        cursor = conn.cursor()
+
+        # Delete existing pools for this host
+        cursor.execute("DELETE FROM zfs_pool_info WHERE host = ?", (host,))
+
+        # Insert new pool data
+        for pool in pools:
+            cursor.execute("""
+                INSERT INTO zfs_pool_info
+                (host, pool_name, size_bytes, allocated_bytes, free_bytes, health, collected_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                host,
+                pool.get("pool"),
+                pool.get("size_bytes"),
+                pool.get("allocated_bytes"),
+                pool.get("free_bytes"),
+                pool.get("health"),
+                collected_at
+            ))
+
+        conn.commit()
+
+
+def get_zfs_pool_info(host: str) -> list[dict]:
+    """Get ZFS pool info from cache."""
+    with _db_lock, get_connection(DB_PATH) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT pool_name, size_bytes, allocated_bytes, free_bytes, health, collected_at
+            FROM zfs_pool_info
+            WHERE host = ?
+        """, (host,))
+
+        rows = cursor.fetchall()
+
+        return [
+            {
+                "pool_name": row[0],
+                "size_bytes": row[1],
+                "allocated_bytes": row[2],
+                "free_bytes": row[3],
+                "health": row[4],
+                "collected_at": row[5],
+            }
+            for row in rows
+        ]
+
+
+def collect_prometheus_zfs_data() -> bool:
+    """Collect ZFS pool data from Prometheus for configured hosts.
+
+    Returns:
+        True if any data was collected, False otherwise
+    """
+    config = load_config()
+    prometheus_config = config.get("prometheus", {})
+
+    if not prometheus_config:
+        return False
+
+    prometheus_url = prometheus_config.get("url")
+    instance_map = prometheus_config.get("instance_map", {})
+
+    if not prometheus_url or not instance_map:
+        return False
+
+    updated = False
+
+    for host, instance in instance_map.items():
+        logging.info("Collecting ZFS pool data from Prometheus for %s...", host)
+
+        pools = fetch_prometheus_zfs_pools(prometheus_url, instance)
+
+        if pools:
+            save_zfs_pool_info(host, pools)
+            logging.info("  Cached %d ZFS pools for %s", len(pools), host)
+            updated = True
+
+    return updated
+
+
+# =============================================================================
 # Database save/get functions
 # =============================================================================
 
@@ -760,6 +901,10 @@ def collect_all_data():
 
     # Collect Prometheus uptime data (for Linux servers)
     if collect_prometheus_uptime_data():
+        updated = True
+
+    # Collect Prometheus ZFS pool data (for Linux servers with ZFS)
+    if collect_prometheus_zfs_data():
         updated = True
 
     if updated:

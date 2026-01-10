@@ -46,22 +46,31 @@
                         "type": "string"
                     },
                     "storage": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "name": {
-                                    "type": "string"
-                                },
-                                "model": {
-                                    "type": "string"
-                                },
-                                "volume": {
-                                    "type": "string"
+                        "oneOf": [
+                            {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "model": {
+                                            "type": "string"
+                                        },
+                                        "volume": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["name"]
                                 }
                             },
-                            "required": ["name"]
-                        }
+                            {
+                                "type": "string",
+                                "enum": ["zfs"],
+                                "description": "ZFS storage type (data fetched from Prometheus)"
+                            }
+                        ]
                     },
                     "os": {
                         "type": "string"

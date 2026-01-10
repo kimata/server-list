@@ -45,7 +45,7 @@ class MachineConfig:
     mode: str | None = None  # Server model name
     cpu: str | None = None
     ram: str | None = None
-    storage: list[StorageConfig] = field(default_factory=list)
+    storage: list[StorageConfig] | str = field(default_factory=list)
     os: str | None = None
     esxi: str | None = None
     ilo: str | None = None
@@ -53,7 +53,12 @@ class MachineConfig:
 
     @classmethod
     def from_dict(cls, data: dict) -> "MachineConfig":
-        storage = [StorageConfig.from_dict(s) for s in data.get("storage", [])]
+        raw_storage = data.get("storage", [])
+        # Support both array of storage objects and string 'zfs'
+        if isinstance(raw_storage, str):
+            storage: list[StorageConfig] | str = raw_storage
+        else:
+            storage = [StorageConfig.from_dict(s) for s in raw_storage]
         vm = [VmConfig.from_dict(v) for v in data.get("vm", [])]
         return cls(
             name=data["name"],
@@ -77,10 +82,13 @@ class MachineConfig:
         if self.ram:
             result["ram"] = self.ram
         if self.storage:
-            result["storage"] = [
-                {"name": s.name, "model": s.model, "volume": s.volume}
-                for s in self.storage
-            ]
+            if isinstance(self.storage, str):
+                result["storage"] = self.storage
+            else:
+                result["storage"] = [
+                    {"name": s.name, "model": s.model, "volume": s.volume}
+                    for s in self.storage
+                ]
         if self.os:
             result["os"] = self.os
         if self.esxi:

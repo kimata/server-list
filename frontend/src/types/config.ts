@@ -14,7 +14,7 @@ export interface Machine {
   mode: string;
   cpu: string;
   ram: string;
-  storage: Storage[];
+  storage: Storage[] | 'zfs';
   os: string;
   vm?: VirtualMachine[];
   esxi?: string;
@@ -88,5 +88,20 @@ export interface PowerData {
 export interface PowerResponse {
   success: boolean;
   data?: PowerData;
+  error?: string;
+}
+
+export interface ZfsPoolInfo {
+  pool_name: string;
+  size_bytes: number | null;
+  allocated_bytes: number | null;
+  free_bytes: number | null;
+  health: number | null;
+  collected_at: string;
+}
+
+export interface ZfsPoolResponse {
+  success: boolean;
+  data?: ZfsPoolInfo[];
   error?: string;
 }
