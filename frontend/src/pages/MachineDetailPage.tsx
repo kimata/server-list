@@ -225,7 +225,7 @@ export function MachineDetailPage() {
       <section className="py-8">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 order-2 lg:order-1">
               {/* Machine Specs */}
               <div className="bg-white rounded-lg shadow p-6 mb-6">
                 <h3 className="text-lg font-bold mb-4">ハードウェア仕様</h3>
@@ -294,7 +294,7 @@ export function MachineDetailPage() {
               )}
             </div>
 
-            <div>
+            <div className="order-1 lg:order-2">
               {/* Server Image */}
               <div className="bg-white rounded-lg shadow p-6 mb-6">
                 <div className="flex justify-center">
