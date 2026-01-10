@@ -310,7 +310,7 @@ export function MachineDetailPage() {
             </div>
 
             {/* Storage Details & Quick Actions - モバイルで最後、PCで右下 */}
-            <div className="order-3 lg:order-3">
+            <div className="order-3 lg:order-3 lg:col-start-3">
               <div className="bg-white rounded-lg shadow p-6 mb-6">
                 <h3 className="text-lg font-bold mb-4">ストレージ詳細</h3>
                 <StorageInfo storage={machine.storage} />
