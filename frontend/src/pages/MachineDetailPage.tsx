@@ -294,8 +294,8 @@ export function MachineDetailPage() {
               )}
             </div>
 
+            {/* Server Image - モバイルで最初、PCで右上 */}
             <div className="order-1 lg:order-2">
-              {/* Server Image */}
               <div className="bg-white rounded-lg shadow p-6 mb-6">
                 <div className="flex justify-center">
                   <ServerImage modelName={machine.mode} size="large" />
@@ -307,14 +307,15 @@ export function MachineDetailPage() {
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Storage Details */}
+            {/* Storage Details & Quick Actions - モバイルで最後、PCで右下 */}
+            <div className="order-3 lg:order-3">
               <div className="bg-white rounded-lg shadow p-6 mb-6">
                 <h3 className="text-lg font-bold mb-4">ストレージ詳細</h3>
                 <StorageInfo storage={machine.storage} />
               </div>
 
-              {/* Quick Actions */}
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-bold mb-4">クイックアクション</h3>
                 <div className="space-y-2">
