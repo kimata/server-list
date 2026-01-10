@@ -105,7 +105,7 @@ export function ZfsStorageInfo({ hostName }: ZfsStorageInfoProps) {
                   style={{ width: `${Math.min(usedPercent, 100)}%` }}
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xs font-medium text-gray-700 mix-blend-difference">
+                  <span className="text-xs font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
                     {usedPercent.toFixed(1)}%
                   </span>
                 </div>
