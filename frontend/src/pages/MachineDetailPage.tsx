@@ -224,7 +224,7 @@ export function MachineDetailPage() {
 
       <section className="py-8">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             <div className="lg:col-span-2 order-2 lg:order-1">
               {/* Machine Specs */}
               <div className="bg-white rounded-lg shadow p-6 mb-6">
