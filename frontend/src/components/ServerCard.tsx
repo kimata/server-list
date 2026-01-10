@@ -124,16 +124,18 @@ export function ServerCard({
                 />
               </div>
 
-              <div className="spec-item mb-3">
-                <PerformanceBar
-                  label="総ストレージ容量"
-                  value={Math.round(totalStorageGb / 1024 * 10) / 10}
-                  maxValue={maxStorage / 1024}
-                  unit=" TB"
-                  color="#48c774"
-                  icon=""
-                />
-              </div>
+              {machine.storage !== 'zfs' && (
+                <div className="spec-item mb-3">
+                  <PerformanceBar
+                    label="総ストレージ容量"
+                    value={Math.round(totalStorageGb / 1024 * 10) / 10}
+                    maxValue={maxStorage / 1024}
+                    unit=" TB"
+                    color="#48c774"
+                    icon=""
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
