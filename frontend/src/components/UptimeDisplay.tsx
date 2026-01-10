@@ -51,7 +51,7 @@ export function UptimeDisplay({ uptimeInfo }: UptimeDisplayProps) {
   if (!uptimeInfo) {
     return (
       <div className="uptime-display">
-        <span className="inline-flex items-center px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
+        <span className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm">
           <span className="mr-1">⏱️</span>
           <span>Uptime: 取得中...</span>
         </span>
@@ -62,7 +62,7 @@ export function UptimeDisplay({ uptimeInfo }: UptimeDisplayProps) {
   if (uptimeInfo.status === 'stopped') {
     return (
       <div className="uptime-display">
-        <span className="inline-flex items-center px-2 py-0.5 bg-red-500 text-white rounded text-xs">
+        <span className="inline-flex items-center px-2 py-1 bg-red-500 text-white rounded text-sm">
           <span className="mr-1">⚠️</span>
           <span>停止中</span>
         </span>
@@ -73,7 +73,7 @@ export function UptimeDisplay({ uptimeInfo }: UptimeDisplayProps) {
   if (uptimeInfo.status === 'unknown') {
     return (
       <div className="uptime-display">
-        <span className="inline-flex items-center px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded text-xs">
+        <span className="inline-flex items-center px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-sm">
           <span className="mr-1">❓</span>
           <span>状態不明</span>
         </span>
@@ -83,7 +83,7 @@ export function UptimeDisplay({ uptimeInfo }: UptimeDisplayProps) {
 
   return (
     <div className="uptime-display">
-      <span className="inline-flex items-center px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">
+      <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 rounded text-sm">
         <span className="mr-1">⏱️</span>
         <span>
           Uptime: {displaySeconds !== null ? formatUptime(displaySeconds) : '計算中...'}
