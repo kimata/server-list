@@ -227,6 +227,7 @@ export function MachineDetailPage() {
       <section className="py-8">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            {/* 左カラム - ハードウェア仕様 + VM */}
             <div className="lg:col-span-2 order-2 lg:order-1">
               {/* Machine Specs */}
               <div className="bg-white rounded-lg shadow p-6 mb-6">
@@ -296,9 +297,10 @@ export function MachineDetailPage() {
               )}
             </div>
 
-            {/* Server Image - モバイルで最初、PCで右上 */}
-            <div className="order-1 lg:order-2">
-              <div className="bg-white rounded-lg shadow p-6 mb-6">
+            {/* 右カラム - モバイルでは contents で展開、PCでは通常のブロック */}
+            <div className="contents lg:block">
+              {/* Server Image - モバイルでorder-1(最初)、PCでは右カラム内で上 */}
+              <div className="order-1 lg:order-none bg-white rounded-lg shadow p-6 mb-6">
                 <div className="flex justify-center">
                   <ServerImage modelName={machine.mode} size="large" />
                 </div>
@@ -309,16 +311,15 @@ export function MachineDetailPage() {
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Storage Details & Quick Actions - モバイルで最後、PCで右下 */}
-            <div className="order-3 lg:order-3 lg:col-start-3">
-              <div className="bg-white rounded-lg shadow p-6 mb-6">
+              {/* Storage Details - モバイルでorder-3(最後の方)、PCでは右カラム内で中央 */}
+              <div className="order-3 lg:order-none bg-white rounded-lg shadow p-6 mb-6">
                 <h3 className="text-lg font-bold mb-4">ストレージ詳細</h3>
                 <StorageInfo storage={machine.storage} />
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6">
+              {/* Quick Actions - モバイルでorder-4(最後)、PCでは右カラム内で下 */}
+              <div className="order-4 lg:order-none bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-bold mb-4">クイックアクション</h3>
                 <div className="space-y-2">
                   <button
