@@ -19,6 +19,7 @@ export interface Machine {
   vm?: VirtualMachine[];
   esxi?: string;
   ilo?: string;
+  mount?: string[];
 }
 
 export interface Config {
@@ -103,5 +104,19 @@ export interface ZfsPoolInfo {
 export interface ZfsPoolResponse {
   success: boolean;
   data?: ZfsPoolInfo[];
+  error?: string;
+}
+
+export interface MountInfo {
+  mountpoint: string;
+  size_bytes: number | null;
+  avail_bytes: number | null;
+  used_bytes: number | null;
+  collected_at: string;
+}
+
+export interface MountInfoResponse {
+  success: boolean;
+  data?: MountInfo[];
   error?: string;
 }

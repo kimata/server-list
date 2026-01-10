@@ -94,6 +94,13 @@
                             },
                             "required": ["name"]
                         }
+                    },
+                    "mount": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Mount points to monitor via Prometheus node_exporter"
                     }
                 },
                 "required": ["name"]

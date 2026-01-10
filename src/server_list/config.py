@@ -50,6 +50,7 @@ class MachineConfig:
     esxi: str | None = None
     ilo: str | None = None
     vm: list[VmConfig] = field(default_factory=list)
+    mount: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict) -> "MachineConfig":
@@ -60,6 +61,7 @@ class MachineConfig:
         else:
             storage = [StorageConfig.from_dict(s) for s in raw_storage]
         vm = [VmConfig.from_dict(v) for v in data.get("vm", [])]
+        mount = data.get("mount", [])
         return cls(
             name=data["name"],
             mode=data.get("mode"),
@@ -70,6 +72,7 @@ class MachineConfig:
             esxi=data.get("esxi"),
             ilo=data.get("ilo"),
             vm=vm,
+            mount=mount,
         )
 
     def to_dict(self) -> dict:
@@ -97,6 +100,8 @@ class MachineConfig:
             result["ilo"] = self.ilo
         if self.vm:
             result["vm"] = [{"name": v.name} for v in self.vm]
+        if self.mount:
+            result["mount"] = self.mount
         return result
 
 

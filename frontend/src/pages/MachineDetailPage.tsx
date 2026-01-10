@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { Config, Machine, UptimeInfo, PowerInfo } from '../types/config';
 import { StorageInfo } from '../components/StorageInfo';
 import { ZfsStorageInfo } from '../components/ZfsStorageInfo';
+import { MountStorageInfo } from '../components/MountStorageInfo';
 import { PerformanceBar } from '../components/PerformanceBar';
 import { VMTable } from '../components/VMTable';
 import { UptimeDisplay } from '../components/UptimeDisplay';
@@ -320,6 +321,11 @@ export function MachineDetailPage() {
                   <ZfsStorageInfo hostName={machine.name} />
                 ) : (
                   <StorageInfo storage={machine.storage} />
+                )}
+                {machine.mount && machine.mount.length > 0 && (
+                  <div className="mt-4">
+                    <MountStorageInfo hostName={machine.name} />
+                  </div>
                 )}
               </div>
 

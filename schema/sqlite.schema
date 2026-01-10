@@ -55,6 +55,18 @@ CREATE TABLE IF NOT EXISTS zfs_pool_info (
     UNIQUE(host, pool_name)
 );
 
+-- Mount point info table (from Prometheus node_exporter)
+CREATE TABLE IF NOT EXISTS mount_info (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    host TEXT NOT NULL,
+    mountpoint TEXT NOT NULL,
+    size_bytes REAL,
+    avail_bytes REAL,
+    used_bytes REAL,
+    collected_at TIMESTAMP NOT NULL,
+    UNIQUE(host, mountpoint)
+);
+
 -- Migration notes:
 -- - esxi_version column in uptime_info: handled in code via migrate_schema()
 -- SQLite doesn't support IF NOT EXISTS for ALTER TABLE

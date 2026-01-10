@@ -656,6 +656,167 @@ def collect_prometheus_zfs_data() -> bool:
 
 
 # =============================================================================
+# Prometheus mount point functions (for Linux servers)
+# =============================================================================
+
+
+def fetch_prometheus_mount_info(
+    prometheus_url: str, instance: str, mountpoints: list[str]
+) -> list[dict] | None:
+    """Fetch mount point data from Prometheus node_exporter.
+
+    Args:
+        prometheus_url: Prometheus server URL
+        instance: Prometheus instance label
+        mountpoints: List of mount points to fetch
+
+    Returns:
+        List of mount data dictionaries or None if failed
+    """
+    mount_data: dict[str, dict] = {}
+
+    for mountpoint in mountpoints:
+        metrics = {
+            "size_bytes": f'node_filesystem_size_bytes{{instance=~"{instance}.*",mountpoint="{mountpoint}"}}',
+            "avail_bytes": f'node_filesystem_avail_bytes{{instance=~"{instance}.*",mountpoint="{mountpoint}"}}',
+        }
+
+        for field, query in metrics.items():
+            url = f"{prometheus_url}/api/v1/query"
+
+            try:
+                response = requests.get(url, params={"query": query}, timeout=30)
+
+                if response.status_code != 200:
+                    continue
+
+                data = response.json()
+                if data.get("status") != "success":
+                    continue
+
+                results = data.get("data", {}).get("result", [])
+                if results:
+                    value = results[0].get("value", [None, None])[1]
+
+                    if mountpoint not in mount_data:
+                        mount_data[mountpoint] = {"mountpoint": mountpoint}
+
+                    if value is not None:
+                        mount_data[mountpoint][field] = float(value)
+
+            except Exception as e:
+                logging.warning("Error fetching mount metric for %s: %s", mountpoint, e)
+
+    # Calculate used_bytes
+    for data in mount_data.values():
+        if "size_bytes" in data and "avail_bytes" in data:
+            data["used_bytes"] = data["size_bytes"] - data["avail_bytes"]
+
+    if not mount_data:
+        return None
+
+    return list(mount_data.values())
+
+
+def save_mount_info(host: str, mounts: list[dict]):
+    """Save mount info to SQLite cache."""
+    collected_at = datetime.now().isoformat()
+
+    with _db_lock, get_connection(DB_PATH) as conn:
+        cursor = conn.cursor()
+
+        # Delete existing mounts for this host
+        cursor.execute("DELETE FROM mount_info WHERE host = ?", (host,))
+
+        # Insert new mount data
+        for mount in mounts:
+            cursor.execute("""
+                INSERT INTO mount_info
+                (host, mountpoint, size_bytes, avail_bytes, used_bytes, collected_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                host,
+                mount.get("mountpoint"),
+                mount.get("size_bytes"),
+                mount.get("avail_bytes"),
+                mount.get("used_bytes"),
+                collected_at
+            ))
+
+        conn.commit()
+
+
+def get_mount_info(host: str) -> list[dict]:
+    """Get mount info from cache."""
+    with _db_lock, get_connection(DB_PATH) as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT mountpoint, size_bytes, avail_bytes, used_bytes, collected_at
+            FROM mount_info
+            WHERE host = ?
+        """, (host,))
+
+        rows = cursor.fetchall()
+
+        return [
+            {
+                "mountpoint": row[0],
+                "size_bytes": row[1],
+                "avail_bytes": row[2],
+                "used_bytes": row[3],
+                "collected_at": row[4],
+            }
+            for row in rows
+        ]
+
+
+def collect_prometheus_mount_data() -> bool:
+    """Collect mount point data from Prometheus for configured hosts.
+
+    Automatically collects mount data for machines with mount configuration.
+    Instance name is derived from FQDN (first part) unless explicitly
+    configured in prometheus.instance_map.
+
+    Returns:
+        True if any data was collected, False otherwise
+    """
+    config = load_config()
+    prometheus_config = config.get("prometheus", {})
+
+    if not prometheus_config:
+        return False
+
+    prometheus_url = prometheus_config.get("url")
+    if not prometheus_url:
+        return False
+
+    instance_map = prometheus_config.get("instance_map", {})
+
+    # Find machines with mount configuration
+    machines = config.get("machine", [])
+    target_machines = [(m["name"], m["mount"]) for m in machines if m.get("mount")]
+
+    if not target_machines:
+        return False
+
+    updated = False
+
+    for host, mountpoints in target_machines:
+        instance = get_prometheus_instance(host, instance_map)
+        logging.info("Collecting mount data from Prometheus for %s (instance: %s)...", host, instance)
+
+        mounts = fetch_prometheus_mount_info(prometheus_url, instance, mountpoints)
+
+        if mounts:
+            save_mount_info(host, mounts)
+            logging.info("  Cached %d mount points for %s", len(mounts), host)
+            updated = True
+
+    return updated
+
+
+# =============================================================================
 # Database save/get functions
 # =============================================================================
 
@@ -952,6 +1113,10 @@ def collect_all_data():
 
     # Collect Prometheus ZFS pool data (for Linux servers with ZFS)
     if collect_prometheus_zfs_data():
+        updated = True
+
+    # Collect Prometheus mount point data
+    if collect_prometheus_mount_data():
         updated = True
 
     if updated:

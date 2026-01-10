@@ -1,6 +1,7 @@
 import type { Machine, CpuBenchmark, UptimeInfo, PowerInfo } from '../types/config';
 import { StorageInfo } from './StorageInfo';
 import { ZfsStorageInfo } from './ZfsStorageInfo';
+import { MountStorageInfo } from './MountStorageInfo';
 import { PerformanceBar } from './PerformanceBar';
 import { UptimeDisplay } from './UptimeDisplay';
 import { ServerImage } from './ServerImage';
@@ -146,6 +147,12 @@ export function ServerCard({
           <ZfsStorageInfo hostName={machine.name} />
         ) : (
           <StorageInfo storage={machine.storage} />
+        )}
+
+        {machine.mount && machine.mount.length > 0 && (
+          <div className="mt-4">
+            <MountStorageInfo hostName={machine.name} />
+          </div>
         )}
 
         {machine.vm && machine.vm.length > 0 && (
