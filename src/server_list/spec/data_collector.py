@@ -703,33 +703,37 @@ def fetch_btrfs_metrics(prometheus_url: str, uuid: str) -> dict | None:
         Dict with size_bytes and used_bytes or None if failed
     """
     result: dict = {}
+    url = f"{prometheus_url}/api/v1/query"
 
-    # Get size (data block group only)
-    metrics = {
-        "size_bytes": f'node_btrfs_size_bytes{{uuid="{uuid}",block_group_type="data"}}',
-        "used_bytes": f'node_btrfs_used_bytes{{uuid="{uuid}",block_group_type="data"}}',
-    }
-
-    for field, query in metrics.items():
-        url = f"{prometheus_url}/api/v1/query"
-
-        try:
-            response = requests.get(url, params={"query": query}, timeout=30)
-            if response.status_code != 200:
-                continue
-
+    # Get total size: sum of all device sizes
+    try:
+        query = f'sum(node_btrfs_device_size_bytes{{uuid="{uuid}"}})'
+        response = requests.get(url, params={"query": query}, timeout=30)
+        if response.status_code == 200:
             data = response.json()
-            if data.get("status") != "success":
-                continue
+            if data.get("status") == "success":
+                results = data.get("data", {}).get("result", [])
+                if results:
+                    value = results[0].get("value", [None, None])[1]
+                    if value is not None:
+                        result["size_bytes"] = float(value)
+    except Exception as e:
+        logging.warning("Error fetching btrfs device size: %s", e)
 
-            results = data.get("data", {}).get("result", [])
-            if results:
-                value = results[0].get("value", [None, None])[1]
-                if value is not None:
-                    result[field] = float(value)
-
-        except Exception as e:
-            logging.warning("Error fetching btrfs metric %s: %s", field, e)
+    # Get used bytes: sum of used across all block group types
+    try:
+        query = f'sum(node_btrfs_used_bytes{{uuid="{uuid}"}})'
+        response = requests.get(url, params={"query": query}, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "success":
+                results = data.get("data", {}).get("result", [])
+                if results:
+                    value = results[0].get("value", [None, None])[1]
+                    if value is not None:
+                        result["used_bytes"] = float(value)
+    except Exception as e:
+        logging.warning("Error fetching btrfs used bytes: %s", e)
 
     if "size_bytes" in result and "used_bytes" in result:
         result["avail_bytes"] = result["size_bytes"] - result["used_bytes"]
