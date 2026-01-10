@@ -98,7 +98,18 @@
                     "mount": {
                         "type": "array",
                         "items": {
-                            "type": "string"
+                            "type": "object",
+                            "properties": {
+                                "label": {
+                                    "type": "string",
+                                    "description": "Prometheus instance label to match"
+                                },
+                                "path": {
+                                    "type": "string",
+                                    "description": "Mount point path to query"
+                                }
+                            },
+                            "required": ["label", "path"]
                         },
                         "description": "Mount points to monitor via Prometheus node_exporter"
                     }

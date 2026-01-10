@@ -38,6 +38,18 @@ class VmConfig:
 
 
 @dataclass
+class MountConfig:
+    """Mount point configuration."""
+
+    label: str
+    path: str
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "MountConfig":
+        return cls(label=data["label"], path=data["path"])
+
+
+@dataclass
 class MachineConfig:
     """Machine (server) configuration."""
 
@@ -50,7 +62,7 @@ class MachineConfig:
     esxi: str | None = None
     ilo: str | None = None
     vm: list[VmConfig] = field(default_factory=list)
-    mount: list[str] = field(default_factory=list)
+    mount: list[MountConfig] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict) -> "MachineConfig":
@@ -61,7 +73,7 @@ class MachineConfig:
         else:
             storage = [StorageConfig.from_dict(s) for s in raw_storage]
         vm = [VmConfig.from_dict(v) for v in data.get("vm", [])]
-        mount = data.get("mount", [])
+        mount = [MountConfig.from_dict(m) for m in data.get("mount", [])]
         return cls(
             name=data["name"],
             mode=data.get("mode"),
@@ -101,7 +113,7 @@ class MachineConfig:
         if self.vm:
             result["vm"] = [{"name": v.name} for v in self.vm]
         if self.mount:
-            result["mount"] = self.mount
+            result["mount"] = [{"label": m.label, "path": m.path} for m in self.mount]
         return result
 
 

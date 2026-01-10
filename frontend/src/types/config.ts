@@ -9,6 +9,11 @@ export interface VirtualMachine {
   power_state?: string;
 }
 
+export interface MountConfig {
+  label: string;
+  path: string;
+}
+
 export interface Machine {
   name: string;
   mode: string;
@@ -19,7 +24,7 @@ export interface Machine {
   vm?: VirtualMachine[];
   esxi?: string;
   ilo?: string;
-  mount?: string[];
+  mount?: MountConfig[];
 }
 
 export interface Config {
