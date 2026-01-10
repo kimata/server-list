@@ -422,8 +422,35 @@ def fetch_prometheus_uptime(prometheus_url: str, instance: str) -> dict | None:
         return None
 
 
+def get_prometheus_instance(host: str, instance_map: dict) -> str:
+    """Get Prometheus instance name for a host.
+
+    If the host is in instance_map, use that mapping.
+    Otherwise, derive from FQDN (use first part before the dot).
+
+    Args:
+        host: Host name (e.g., "tanzania.green-rabbit.net")
+        instance_map: Optional mapping of host -> instance
+
+    Returns:
+        Prometheus instance name (e.g., "tanzania")
+    """
+    if host in instance_map:
+        return instance_map[host]
+
+    # Derive from FQDN: use the first part before the dot
+    if "." in host:
+        return host.split(".")[0]
+
+    return host
+
+
 def collect_prometheus_uptime_data() -> bool:
     """Collect uptime data from Prometheus for configured Linux hosts.
+
+    Automatically collects uptime for machines without ESXi configuration.
+    Instance name is derived from FQDN (first part) unless explicitly
+    configured in prometheus.instance_map.
 
     Returns:
         True if any data was collected, False otherwise
@@ -435,14 +462,22 @@ def collect_prometheus_uptime_data() -> bool:
         return False
 
     prometheus_url = prometheus_config.get("url")
+    if not prometheus_url:
+        return False
+
     instance_map = prometheus_config.get("instance_map", {})
 
-    if not prometheus_url or not instance_map:
+    # Find machines without ESXi (Linux servers that need Prometheus uptime)
+    machines = config.get("machine", [])
+    target_hosts = [m["name"] for m in machines if not m.get("esxi")]
+
+    if not target_hosts:
         return False
 
     updated = False
 
-    for host, instance in instance_map.items():
+    for host in target_hosts:
+        instance = get_prometheus_instance(host, instance_map)
         logging.info("Collecting uptime from Prometheus for %s (instance: %s)...", host, instance)
 
         uptime_data = fetch_prometheus_uptime(prometheus_url, instance)
@@ -578,6 +613,10 @@ def get_zfs_pool_info(host: str) -> list[dict]:
 def collect_prometheus_zfs_data() -> bool:
     """Collect ZFS pool data from Prometheus for configured hosts.
 
+    Automatically collects ZFS pool data for machines with storage: 'zfs'.
+    Instance name is derived from FQDN (first part) unless explicitly
+    configured in prometheus.instance_map.
+
     Returns:
         True if any data was collected, False otherwise
     """
@@ -588,15 +627,23 @@ def collect_prometheus_zfs_data() -> bool:
         return False
 
     prometheus_url = prometheus_config.get("url")
+    if not prometheus_url:
+        return False
+
     instance_map = prometheus_config.get("instance_map", {})
 
-    if not prometheus_url or not instance_map:
+    # Find machines with storage: 'zfs'
+    machines = config.get("machine", [])
+    target_hosts = [m["name"] for m in machines if m.get("storage") == "zfs"]
+
+    if not target_hosts:
         return False
 
     updated = False
 
-    for host, instance in instance_map.items():
-        logging.info("Collecting ZFS pool data from Prometheus for %s...", host)
+    for host in target_hosts:
+        instance = get_prometheus_instance(host, instance_map)
+        logging.info("Collecting ZFS pool data from Prometheus for %s (instance: %s)...", host, instance)
 
         pools = fetch_prometheus_zfs_pools(prometheus_url, instance)
 
