@@ -102,11 +102,16 @@
                             "properties": {
                                 "label": {
                                     "type": "string",
-                                    "description": "Prometheus instance label to match"
+                                    "description": "Prometheus label to match (btrfs label or instance)"
                                 },
                                 "path": {
                                     "type": "string",
-                                    "description": "Mount point path to query"
+                                    "description": "Mount point path (for display)"
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "enum": ["btrfs", "filesystem"],
+                                    "description": "Storage type: btrfs uses node_btrfs_* metrics, filesystem uses node_filesystem_* metrics"
                                 }
                             },
                             "required": ["label", "path"]

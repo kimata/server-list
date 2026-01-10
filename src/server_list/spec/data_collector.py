@@ -660,14 +660,94 @@ def collect_prometheus_zfs_data() -> bool:
 # =============================================================================
 
 
+def fetch_btrfs_uuid(prometheus_url: str, label: str) -> str | None:
+    """Get btrfs UUID from label via node_btrfs_info metric.
+
+    Args:
+        prometheus_url: Prometheus server URL
+        label: Btrfs filesystem label
+
+    Returns:
+        UUID string or None if not found
+    """
+    query = f'node_btrfs_info{{label="{label}"}}'
+    url = f"{prometheus_url}/api/v1/query"
+
+    try:
+        response = requests.get(url, params={"query": query}, timeout=30)
+        if response.status_code != 200:
+            return None
+
+        data = response.json()
+        if data.get("status") != "success":
+            return None
+
+        results = data.get("data", {}).get("result", [])
+        if results:
+            return results[0].get("metric", {}).get("uuid")
+
+    except Exception as e:
+        logging.warning("Error fetching btrfs UUID for label %s: %s", label, e)
+
+    return None
+
+
+def fetch_btrfs_metrics(prometheus_url: str, uuid: str) -> dict | None:
+    """Fetch btrfs size and used bytes from Prometheus.
+
+    Args:
+        prometheus_url: Prometheus server URL
+        uuid: Btrfs filesystem UUID
+
+    Returns:
+        Dict with size_bytes and used_bytes or None if failed
+    """
+    result: dict = {}
+
+    # Get size (data block group only)
+    metrics = {
+        "size_bytes": f'node_btrfs_size_bytes{{uuid="{uuid}",block_group_type="data"}}',
+        "used_bytes": f'node_btrfs_used_bytes{{uuid="{uuid}",block_group_type="data"}}',
+    }
+
+    for field, query in metrics.items():
+        url = f"{prometheus_url}/api/v1/query"
+
+        try:
+            response = requests.get(url, params={"query": query}, timeout=30)
+            if response.status_code != 200:
+                continue
+
+            data = response.json()
+            if data.get("status") != "success":
+                continue
+
+            results = data.get("data", {}).get("result", [])
+            if results:
+                value = results[0].get("value", [None, None])[1]
+                if value is not None:
+                    result[field] = float(value)
+
+        except Exception as e:
+            logging.warning("Error fetching btrfs metric %s: %s", field, e)
+
+    if "size_bytes" in result and "used_bytes" in result:
+        result["avail_bytes"] = result["size_bytes"] - result["used_bytes"]
+        return result
+
+    return None
+
+
 def fetch_prometheus_mount_info(
     prometheus_url: str, mount_configs: list[dict]
 ) -> list[dict] | None:
     """Fetch mount point data from Prometheus node_exporter.
 
+    Supports both filesystem (node_filesystem_*) and btrfs (node_btrfs_*) metrics.
+
     Args:
         prometheus_url: Prometheus server URL
-        mount_configs: List of mount configs with 'label' (Prometheus instance) and 'path'
+        mount_configs: List of mount configs with 'label', 'path', and optional 'type'
 
     Returns:
         List of mount data dictionaries or None if failed
@@ -677,43 +757,54 @@ def fetch_prometheus_mount_info(
     for mount_config in mount_configs:
         label = mount_config.get("label", "")
         path = mount_config.get("path", "")
+        mount_type = mount_config.get("type", "filesystem")
 
         if not label or not path:
             continue
 
         result_data: dict = {"mountpoint": path, "label": label}
 
-        metrics = {
-            "size_bytes": f'node_filesystem_size_bytes{{instance=~"{label}.*",mountpoint="{path}"}}',
-            "avail_bytes": f'node_filesystem_avail_bytes{{instance=~"{label}.*",mountpoint="{path}"}}',
-        }
+        if mount_type == "btrfs":
+            # Btrfs: get UUID from label, then fetch metrics
+            uuid = fetch_btrfs_uuid(prometheus_url, label)
+            if uuid:
+                btrfs_data = fetch_btrfs_metrics(prometheus_url, uuid)
+                if btrfs_data:
+                    result_data.update(btrfs_data)
+                    mount_data.append(result_data)
+        else:
+            # Filesystem: use node_filesystem_* metrics
+            metrics = {
+                "size_bytes": f'node_filesystem_size_bytes{{instance=~"{label}.*",mountpoint="{path}"}}',
+                "avail_bytes": f'node_filesystem_avail_bytes{{instance=~"{label}.*",mountpoint="{path}"}}',
+            }
 
-        for field, query in metrics.items():
-            url = f"{prometheus_url}/api/v1/query"
+            for field, query in metrics.items():
+                url = f"{prometheus_url}/api/v1/query"
 
-            try:
-                response = requests.get(url, params={"query": query}, timeout=30)
+                try:
+                    response = requests.get(url, params={"query": query}, timeout=30)
 
-                if response.status_code != 200:
-                    continue
+                    if response.status_code != 200:
+                        continue
 
-                data = response.json()
-                if data.get("status") != "success":
-                    continue
+                    data = response.json()
+                    if data.get("status") != "success":
+                        continue
 
-                results = data.get("data", {}).get("result", [])
-                if results:
-                    value = results[0].get("value", [None, None])[1]
-                    if value is not None:
-                        result_data[field] = float(value)
+                    results = data.get("data", {}).get("result", [])
+                    if results:
+                        value = results[0].get("value", [None, None])[1]
+                        if value is not None:
+                            result_data[field] = float(value)
 
-            except Exception as e:
-                logging.warning("Error fetching mount metric for %s (%s): %s", path, label, e)
+                except Exception as e:
+                    logging.warning("Error fetching mount metric for %s (%s): %s", path, label, e)
 
-        # Calculate used_bytes
-        if "size_bytes" in result_data and "avail_bytes" in result_data:
-            result_data["used_bytes"] = result_data["size_bytes"] - result_data["avail_bytes"]
-            mount_data.append(result_data)
+            # Calculate used_bytes for filesystem type
+            if "size_bytes" in result_data and "avail_bytes" in result_data:
+                result_data["used_bytes"] = result_data["size_bytes"] - result_data["avail_bytes"]
+                mount_data.append(result_data)
 
     if not mount_data:
         return None

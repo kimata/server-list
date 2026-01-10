@@ -43,10 +43,15 @@ class MountConfig:
 
     label: str
     path: str
+    type: str = "filesystem"  # "btrfs" or "filesystem"
 
     @classmethod
     def from_dict(cls, data: dict) -> "MountConfig":
-        return cls(label=data["label"], path=data["path"])
+        return cls(
+            label=data["label"],
+            path=data["path"],
+            type=data.get("type", "filesystem"),
+        )
 
 
 @dataclass
@@ -113,7 +118,10 @@ class MachineConfig:
         if self.vm:
             result["vm"] = [{"name": v.name} for v in self.vm]
         if self.mount:
-            result["mount"] = [{"label": m.label, "path": m.path} for m in self.mount]
+            result["mount"] = [
+                {"label": m.label, "path": m.path, "type": m.type}
+                for m in self.mount
+            ]
         return result
 
 
