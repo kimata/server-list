@@ -205,7 +205,7 @@ export function MachineDetailPage() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <span className="inline-block px-2 py-1 bg-blue-500 text-white rounded text-sm">ESXi</span>
+                <span className="inline-flex items-center px-2 py-1 bg-blue-500 text-white rounded text-sm">ESXi</span>
               </a>
             )}
             {machine.ilo && (
@@ -214,10 +214,10 @@ export function MachineDetailPage() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <span className="inline-block px-2 py-1 bg-yellow-500 text-white rounded text-sm">iLO</span>
+                <span className="inline-flex items-center px-2 py-1 bg-yellow-500 text-white rounded text-sm">iLO</span>
               </a>
             )}
-            <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
+            <span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
               {String((uptimeInfo?.esxi_version ?? machine.os ?? '').replace(/^VMware\s+/i, ''))}
             </span>
           </div>

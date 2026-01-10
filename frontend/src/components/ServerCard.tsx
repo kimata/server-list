@@ -59,15 +59,15 @@ export function ServerCard({
         <span className="flex items-center gap-2">
           {machine.esxi && (
             <a href={machine.esxi} target="_blank" rel="noopener noreferrer" className="management-link" title="ESXi" onClick={(e) => e.stopPropagation()}>
-              <span className="inline-block px-2 py-0.5 bg-blue-500 text-white text-xs rounded">ESXi</span>
+              <span className="inline-flex items-center px-2 py-0.5 bg-blue-500 text-white text-xs rounded">ESXi</span>
             </a>
           )}
           {machine.ilo && (
             <a href={machine.ilo} target="_blank" rel="noopener noreferrer" className="management-link" title="iLO" onClick={(e) => e.stopPropagation()}>
-              <span className="inline-block px-2 py-0.5 bg-yellow-500 text-white text-xs rounded">iLO</span>
+              <span className="inline-flex items-center px-2 py-0.5 bg-yellow-500 text-white text-xs rounded">iLO</span>
             </a>
           )}
-          <span className="inline-block px-2 py-0.5 bg-purple-500 text-white text-xs rounded">
+          <span className="inline-flex items-center px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
             {String((uptimeInfo?.esxi_version ?? machine.os ?? '').replace(/^VMware\s+/i, ''))}
           </span>
         </span>
