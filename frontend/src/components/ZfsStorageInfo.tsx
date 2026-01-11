@@ -66,8 +66,8 @@ export function ZfsStorageInfo({ hostName }: ZfsStorageInfoProps) {
   if (loading) {
     return (
       <div className="zfs-storage-info">
-        <h4 className="text-sm font-bold mb-2">🗄️ ZFS プール</h4>
-        <p className="text-gray-500 text-xs">読み込み中...</p>
+        <h3 className="text-lg font-bold mb-4">🗄️ ZFS プール</h3>
+        <p className="text-gray-500 text-sm">読み込み中...</p>
       </div>
     );
   }
@@ -78,7 +78,7 @@ export function ZfsStorageInfo({ hostName }: ZfsStorageInfoProps) {
 
   return (
     <div className="zfs-storage-info">
-      <h4 className="text-sm font-bold mb-3">🗄️ ZFS プール</h4>
+      <h3 className="text-lg font-bold mb-4">🗄️ ZFS プール</h3>
       <div className="space-y-3">
         {pools.map((pool) => {
           const usedPercent = pool.size_bytes && pool.allocated_bytes

@@ -51,8 +51,8 @@ export function MountStorageInfo({ hostName }: MountStorageInfoProps) {
   if (loading) {
     return (
       <div className="mount-storage-info">
-        <h4 className="text-sm font-bold mb-2">📂 ファイルシステム</h4>
-        <p className="text-gray-500 text-xs">読み込み中...</p>
+        <h3 className="text-lg font-bold mb-4">📂 ファイルシステム</h3>
+        <p className="text-gray-500 text-sm">読み込み中...</p>
       </div>
     );
   }
@@ -63,7 +63,7 @@ export function MountStorageInfo({ hostName }: MountStorageInfoProps) {
 
   return (
     <div className="mount-storage-info">
-      <h4 className="text-sm font-bold mb-3">📂 ファイルシステム</h4>
+      <h3 className="text-lg font-bold mb-4">📂 ファイルシステム</h3>
       <div className="space-y-3">
         {mounts.map((mount) => {
           const usedPercent = mount.size_bytes && mount.used_bytes
