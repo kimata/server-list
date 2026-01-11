@@ -227,8 +227,83 @@ export function MachineDetailPage() {
       <section className="py-8">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            {/* 右カラム上部 (1/3): サーバー画像・モデル、ハードウェア仕様 */}
+            {/* モバイル: 最初に表示 (order-1) */}
+            {/* デスクトップ: 右カラム上部 (col-3, row-1) */}
+            <div className="order-1 lg:col-start-3 lg:row-start-1 space-y-6">
+              {/* サーバー画像・モデル */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex justify-center">
+                  <ServerImage modelName={machine.mode} size="large" />
+                </div>
+                <div className="mt-3 flex justify-center">
+                  <div className="inline-flex rounded overflow-hidden">
+                    <span className="px-2 py-1 bg-gray-800 text-white text-sm">モデル</span>
+                    <span className="px-2 py-1 bg-gray-100 text-gray-800 text-sm">{String(machine.mode ?? '')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ハードウェア仕様 */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-bold mb-4">ハードウェア仕様</h3>
+                <div className="specs-section">
+                  <div className="spec-item mb-4">
+                    <div className="flex items-center mb-2">
+                      <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-sm mr-2">CPU</span>
+                      <span className="text-sm">{String(machine.cpu ?? '')}</span>
+                    </div>
+                    {cpuBenchmark?.multi_thread_score && maxCpuScore > 0 && (
+                      <PerformanceBar
+                        label="マルチスレッド性能"
+                        value={cpuBenchmark.multi_thread_score}
+                        maxValue={maxCpuScore}
+                        color="#f14668"
+                        icon=""
+                      />
+                    )}
+                    {cpuBenchmark?.single_thread_score && maxSingleThreadScore > 0 && (
+                      <PerformanceBar
+                        label="シングルスレッド性能"
+                        value={cpuBenchmark.single_thread_score}
+                        maxValue={maxSingleThreadScore}
+                        color="#ff7f50"
+                        icon=""
+                      />
+                    )}
+                  </div>
+
+                  <div className="spec-item mb-4">
+                    <PerformanceBar
+                      label="RAM"
+                      value={ramGb}
+                      maxValue={maxRam}
+                      unit=" GB"
+                      color="#3298dc"
+                      icon=""
+                    />
+                  </div>
+
+                  {machine.storage !== 'zfs' && (
+                    <div className="spec-item">
+                      <PerformanceBar
+                        label="総ストレージ容量"
+                        value={Math.round(totalStorageGb / 1024 * 10) / 10}
+                        maxValue={maxStorage / 1024}
+                        unit=" TB"
+                        color="#48c774"
+                        icon=""
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* 左カラム (2/3): リソース使用状況、仮想マシン、ZFSプール、ファイルシステム */}
-            <div className="lg:col-span-2 order-2 lg:order-1 space-y-6">
+            {/* モバイル: 2番目に表示 (order-2) */}
+            {/* デスクトップ: 左カラム全体 (col-1-2, row-1から2行分) */}
+            <div className="order-2 lg:col-span-2 lg:col-start-1 lg:row-start-1 lg:row-span-2 space-y-6">
               {/* リソース使用状況 */}
               {(uptimeInfo?.cpu_usage_percent != null || uptimeInfo?.memory_usage_percent != null) && (
                 <div className="bg-white rounded-lg shadow p-6">
@@ -311,76 +386,10 @@ export function MachineDetailPage() {
               )}
             </div>
 
-            {/* 右カラム (1/3): サーバー画像・モデル、ハードウェア仕様、ストレージ、クイックアクション */}
-            <div className="lg:col-span-1 order-1 lg:order-2 space-y-6">
-              {/* サーバー画像・モデル */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <div className="flex justify-center">
-                  <ServerImage modelName={machine.mode} size="large" />
-                </div>
-                <div className="mt-3 flex justify-center">
-                  <div className="inline-flex rounded overflow-hidden">
-                    <span className="px-2 py-1 bg-gray-800 text-white text-sm">モデル</span>
-                    <span className="px-2 py-1 bg-gray-100 text-gray-800 text-sm">{String(machine.mode ?? '')}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* ハードウェア仕様 */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-bold mb-4">ハードウェア仕様</h3>
-                <div className="specs-section">
-                  <div className="spec-item mb-4">
-                    <div className="flex items-center mb-2">
-                      <span className="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-sm mr-2">CPU</span>
-                      <span className="text-sm">{String(machine.cpu ?? '')}</span>
-                    </div>
-                    {cpuBenchmark?.multi_thread_score && maxCpuScore > 0 && (
-                      <PerformanceBar
-                        label="マルチスレッド性能"
-                        value={cpuBenchmark.multi_thread_score}
-                        maxValue={maxCpuScore}
-                        color="#f14668"
-                        icon=""
-                      />
-                    )}
-                    {cpuBenchmark?.single_thread_score && maxSingleThreadScore > 0 && (
-                      <PerformanceBar
-                        label="シングルスレッド性能"
-                        value={cpuBenchmark.single_thread_score}
-                        maxValue={maxSingleThreadScore}
-                        color="#ff7f50"
-                        icon=""
-                      />
-                    )}
-                  </div>
-
-                  <div className="spec-item mb-4">
-                    <PerformanceBar
-                      label="RAM"
-                      value={ramGb}
-                      maxValue={maxRam}
-                      unit=" GB"
-                      color="#3298dc"
-                      icon=""
-                    />
-                  </div>
-
-                  {machine.storage !== 'zfs' && (
-                    <div className="spec-item">
-                      <PerformanceBar
-                        label="総ストレージ容量"
-                        value={Math.round(totalStorageGb / 1024 * 10) / 10}
-                        maxValue={maxStorage / 1024}
-                        unit=" TB"
-                        color="#48c774"
-                        icon=""
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
+            {/* 右カラム下部 (1/3): ストレージ、クイックアクション */}
+            {/* モバイル: 最後に表示 (order-3) */}
+            {/* デスクトップ: 右カラム下部 (col-3, row-2) */}
+            <div className="order-3 lg:col-start-3 lg:row-start-2 space-y-6">
               {/* ストレージ */}
               {machine.storage !== 'zfs' && (
                 <div className="bg-white rounded-lg shadow p-6">
