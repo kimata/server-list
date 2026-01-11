@@ -111,7 +111,7 @@ class TestSaveHostInfo:
             # 保存されていることを確認
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
-            cursor.execute("SELECT status FROM uptime_info WHERE host = ?", ("test-host",))
+            cursor.execute("SELECT status FROM host_info WHERE host = ?", ("test-host",))
             row = cursor.fetchone()
             conn.close()
 
@@ -140,12 +140,12 @@ class TestSaveHostInfoFailed:
             # 保存されていることを確認
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
-            cursor.execute("SELECT status FROM uptime_info WHERE host = ?", ("test-host",))
+            cursor.execute("SELECT status FROM host_info WHERE host = ?", ("test-host",))
             row = cursor.fetchone()
             conn.close()
 
             assert row is not None
-            assert row[0] == "unknown"  # ESXi に到達できない場合は unknown
+            assert row[0] == "unknown"  # ホストに到達できない場合は unknown
 
 
 class TestGetAllVmInfoForHost:
@@ -183,11 +183,11 @@ class TestGetAllVmInfoForHost:
             assert result[0]["vm_name"] == "test-vm"
 
 
-class TestGetUptimeInfo:
-    """get_uptime_info 関数のテスト"""
+class TestGetHostInfo:
+    """get_host_info 関数のテスト"""
 
-    def test_gets_uptime_info(self, temp_data_dir):
-        """稼働時間情報を取得する"""
+    def test_gets_host_info(self, temp_data_dir):
+        """ホスト情報を取得する"""
         from server_list.spec import data_collector
 
         db_path = temp_data_dir / "test.db"
@@ -210,7 +210,7 @@ class TestGetUptimeInfo:
             data_collector.init_db()
             data_collector.save_host_info(host_info)
 
-            result = data_collector.get_uptime_info("test-host")
+            result = data_collector.get_host_info("test-host")
 
             assert result is not None
             assert result["host"] == "test-host"
@@ -229,7 +229,7 @@ class TestGetUptimeInfo:
         ):
             data_collector.init_db()
 
-            result = data_collector.get_uptime_info("nonexistent")
+            result = data_collector.get_host_info("nonexistent")
 
             assert result is None
 
@@ -286,10 +286,10 @@ class TestCollectorWorker:
             data_collector.stop_collector()
 
 
-class TestUpdateFetchStatusException:
-    """update_fetch_status 関数の例外テスト"""
+class TestUpdateCollectionStatusException:
+    """update_collection_status 関数の例外テスト"""
 
-    def test_updates_fetch_status(self, temp_data_dir):
+    def test_updates_collection_status(self, temp_data_dir):
         """ステータスを更新する"""
         from server_list.spec import data_collector
 
@@ -302,13 +302,13 @@ class TestUpdateFetchStatusException:
             unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
         ):
             data_collector.init_db()
-            data_collector.update_fetch_status("test-host", "success")
+            data_collector.update_collection_status("test-host", "success")
 
             # 保存されていることを確認
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT status FROM fetch_status WHERE esxi_host = ?", ("test-host",)
+                "SELECT status FROM collection_status WHERE host = ?", ("test-host",)
             )
             row = cursor.fetchone()
             conn.close()

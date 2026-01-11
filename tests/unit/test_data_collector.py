@@ -34,8 +34,8 @@ class TestInitDb:
         conn.close()
 
         assert "vm_info" in tables
-        assert "uptime_info" in tables
-        assert "fetch_status" in tables
+        assert "host_info" in tables
+        assert "collection_status" in tables
 
 
 class TestLoadSecret:
@@ -142,11 +142,11 @@ class TestSaveAndGetVmData:
         assert {vm["vm_name"] for vm in result} == {"vm1", "vm2"}
 
 
-class TestSaveAndGetUptimeInfo:
-    """稼働時間データの保存・取得テスト"""
+class TestSaveAndGetHostInfo:
+    """ホスト情報の保存・取得テスト"""
 
-    def test_save_and_get_uptime_info(self, temp_data_dir):
-        """稼働時間データの保存と取得が正しく動作する"""
+    def test_save_and_get_host_info(self, temp_data_dir):
+        """ホスト情報の保存と取得が正しく動作する"""
         from server_list.spec import data_collector
 
         db_path = temp_data_dir / "test.db"
@@ -170,7 +170,7 @@ class TestSaveAndGetUptimeInfo:
 
             data_collector.save_host_info(host_info)
 
-            result = data_collector.get_uptime_info("test-host")
+            result = data_collector.get_host_info("test-host")
 
         assert result is not None
         assert result["host"] == "test-host"
@@ -193,14 +193,14 @@ class TestSaveAndGetUptimeInfo:
 
             data_collector.save_host_info_failed("test-host")
 
-            result = data_collector.get_uptime_info("test-host")
+            result = data_collector.get_host_info("test-host")
 
         assert result is not None
-        assert result["status"] == "unknown"  # ESXi に到達できない場合は unknown
+        assert result["status"] == "unknown"  # ホストに到達できない場合は unknown
         assert result["boot_time"] is None
 
-    def test_get_all_uptime_info(self, temp_data_dir):
-        """全稼働時間情報取得が正しく動作する"""
+    def test_get_all_host_info(self, temp_data_dir):
+        """全ホスト情報取得が正しく動作する"""
         from server_list.spec import data_collector
 
         db_path = temp_data_dir / "test.db"
@@ -224,7 +224,7 @@ class TestSaveAndGetUptimeInfo:
                 }
                 data_collector.save_host_info(host_info)
 
-            result = data_collector.get_all_uptime_info()
+            result = data_collector.get_all_host_info()
 
         assert len(result) == 3
         assert "host-0" in result

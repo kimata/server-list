@@ -68,7 +68,7 @@ export interface UptimeInfo {
   status: 'running' | 'stopped' | 'unknown';
   cpu_threads: number | null;
   cpu_cores: number | null;
-  esxi_version: string | null;
+  os_version: string | null;
   cpu_usage_percent: number | null;
   memory_usage_percent: number | null;
   memory_total_bytes: number | null;

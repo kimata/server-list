@@ -166,7 +166,7 @@ def fetch_host_info(si, host: str) -> dict | None:
                             boot_time = host_system.runtime.bootTime
                             cpu_threads = None
                             cpu_cores = None
-                            esxi_version = None
+                            os_version = None
                             cpu_usage_percent = None
                             memory_usage_percent = None
                             memory_total_bytes = None
@@ -206,7 +206,7 @@ def fetch_host_info(si, host: str) -> dict | None:
                                 cfg = host_system.config
                                 if hasattr(cfg, "product") and cfg.product:
                                     # fullName contains "VMware ESXi 8.0.0 build-xxx"
-                                    esxi_version = cfg.product.fullName
+                                    os_version = cfg.product.fullName
 
                             if boot_time:
                                 return {
@@ -216,7 +216,7 @@ def fetch_host_info(si, host: str) -> dict | None:
                                     "status": "running",
                                     "cpu_threads": cpu_threads,
                                     "cpu_cores": cpu_cores,
-                                    "esxi_version": esxi_version,
+                                    "os_version": os_version,
                                     "cpu_usage_percent": cpu_usage_percent,
                                     "memory_usage_percent": memory_usage_percent,
                                     "memory_total_bytes": memory_total_bytes,
@@ -737,7 +737,7 @@ def collect_prometheus_uptime_data() -> bool:
                 "status": uptime_data["status"],
                 "cpu_threads": None,
                 "cpu_cores": None,
-                "esxi_version": None,
+                "os_version": None,
                 "cpu_usage_percent": usage_data.get("cpu_usage_percent") if usage_data else None,
                 "memory_usage_percent": usage_data.get("memory_usage_percent") if usage_data else None,
                 "memory_total_bytes": usage_data.get("memory_total_bytes") if usage_data else None,
@@ -1292,8 +1292,8 @@ def save_host_info(host_info: dict):
         cursor = conn.cursor()
 
         cursor.execute("""
-            INSERT OR REPLACE INTO uptime_info
-            (host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version,
+            INSERT OR REPLACE INTO host_info
+            (host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, os_version,
              cpu_usage_percent, memory_usage_percent, memory_total_bytes, memory_used_bytes, collected_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
@@ -1303,7 +1303,7 @@ def save_host_info(host_info: dict):
             host_info["status"],
             host_info.get("cpu_threads"),
             host_info.get("cpu_cores"),
-            host_info.get("esxi_version"),
+            host_info.get("os_version"),
             host_info.get("cpu_usage_percent"),
             host_info.get("memory_usage_percent"),
             host_info.get("memory_total_bytes"),
@@ -1326,8 +1326,8 @@ def save_host_info_failed(host: str):
         cursor = conn.cursor()
 
         cursor.execute("""
-            INSERT OR REPLACE INTO uptime_info
-            (host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version,
+            INSERT OR REPLACE INTO host_info
+            (host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, os_version,
              cpu_usage_percent, memory_usage_percent, memory_total_bytes, memory_used_bytes, collected_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (host, None, None, "unknown", None, None, None, None, None, None, None, collected_at))
@@ -1335,35 +1335,35 @@ def save_host_info_failed(host: str):
         conn.commit()
 
 
-def update_fetch_status(esxi_host: str, status: str):
-    """Update the fetch status for a host."""
+def update_collection_status(host: str, status: str):
+    """Update the collection status for a host."""
     with _db_lock, get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
-            INSERT OR REPLACE INTO fetch_status (esxi_host, last_fetch, status)
+            INSERT OR REPLACE INTO collection_status (host, last_fetch, status)
             VALUES (?, ?, ?)
-        """, (esxi_host, datetime.now().isoformat(), status))
+        """, (host, datetime.now().isoformat(), status))
 
         conn.commit()
 
 
-def get_fetch_status(esxi_host: str) -> dict | None:
-    """Get the fetch status for a host."""
+def get_collection_status(host: str) -> dict | None:
+    """Get the collection status for a host."""
     with _db_lock, get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT esxi_host, last_fetch, status
-            FROM fetch_status
-            WHERE esxi_host = ?
-        """, (esxi_host,))
+            SELECT host, last_fetch, status
+            FROM collection_status
+            WHERE host = ?
+        """, (host,))
 
         row = cursor.fetchone()
 
         if row:
             return {
-                "esxi_host": row[0],
+                "host": row[0],
                 "last_fetch": row[1],
                 "status": row[2],
             }
@@ -1371,9 +1371,9 @@ def get_fetch_status(esxi_host: str) -> dict | None:
     return None
 
 
-def is_host_reachable(esxi_host: str) -> bool:
-    """Check if a host was successfully reached in the last fetch."""
-    status = get_fetch_status(esxi_host)
+def is_host_reachable(host: str) -> bool:
+    """Check if a host was successfully reached in the last collection."""
+    status = get_collection_status(host)
     return status is not None and status.get("status") == "success"
 
 
@@ -1444,15 +1444,15 @@ def get_all_vm_info_for_host(esxi_host: str) -> list[dict]:
         ]
 
 
-def get_uptime_info(host: str) -> dict | None:
+def get_host_info(host: str) -> dict | None:
     """Get uptime info from cache."""
     with _db_lock, get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version,
+            SELECT host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, os_version,
                    cpu_usage_percent, memory_usage_percent, memory_total_bytes, memory_used_bytes, collected_at
-            FROM uptime_info
+            FROM host_info
             WHERE host = ?
         """, (host,))
 
@@ -1466,7 +1466,7 @@ def get_uptime_info(host: str) -> dict | None:
                 "status": row[3],
                 "cpu_threads": row[4],
                 "cpu_cores": row[5],
-                "esxi_version": row[6],
+                "os_version": row[6],
                 "cpu_usage_percent": row[7],
                 "memory_usage_percent": row[8],
                 "memory_total_bytes": row[9],
@@ -1477,15 +1477,15 @@ def get_uptime_info(host: str) -> dict | None:
     return None
 
 
-def get_all_uptime_info() -> dict[str, dict]:
+def get_all_host_info() -> dict[str, dict]:
     """Get all uptime info from cache."""
     with _db_lock, get_connection(DB_PATH) as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version,
+            SELECT host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, os_version,
                    cpu_usage_percent, memory_usage_percent, memory_total_bytes, memory_used_bytes, collected_at
-            FROM uptime_info
+            FROM host_info
         """)
 
         rows = cursor.fetchall()
@@ -1497,7 +1497,7 @@ def get_all_uptime_info() -> dict[str, dict]:
                 "status": row[3],
                 "cpu_threads": row[4],
                 "cpu_cores": row[5],
-                "esxi_version": row[6],
+                "os_version": row[6],
                 "cpu_usage_percent": row[7],
                 "memory_usage_percent": row[8],
                 "memory_total_bytes": row[9],
@@ -1528,7 +1528,7 @@ def collect_all_data():
             )
 
             if not si:
-                update_fetch_status(host, "connection_failed")
+                update_collection_status(host, "connection_failed")
                 save_host_info_failed(host)
                 continue
 
@@ -1546,12 +1546,12 @@ def collect_all_data():
                 else:
                     save_host_info_failed(host)
 
-                update_fetch_status(host, "success")
+                update_collection_status(host, "success")
                 updated = True
 
             except Exception as e:
                 logging.warning("Error collecting data from %s: %s", host, e)
-                update_fetch_status(host, f"error: {e}")
+                update_collection_status(host, f"error: {e}")
                 save_host_info_failed(host)
 
             finally:
@@ -1604,7 +1604,7 @@ def collect_host_data(host: str) -> bool:
     )
 
     if not si:
-        update_fetch_status(host, "connection_failed")
+        update_collection_status(host, "connection_failed")
         save_host_info_failed(host)
         my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.DATA)
         return False
@@ -1623,14 +1623,14 @@ def collect_host_data(host: str) -> bool:
         else:
             save_host_info_failed(host)
 
-        update_fetch_status(host, "success")
+        update_collection_status(host, "success")
         my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.DATA)
         logging.info("Data collection complete for %s, clients notified", host)
         return True
 
     except Exception as e:
         logging.warning("Error collecting data from %s: %s", host, e)
-        update_fetch_status(host, f"error: {e}")
+        update_collection_status(host, f"error: {e}")
         save_host_info_failed(host)
         my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.DATA)
         return False

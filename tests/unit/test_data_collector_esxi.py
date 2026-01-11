@@ -258,8 +258,8 @@ class TestCollectAllData:
             data_collector.collect_all_data()
 
 
-class TestUpdateFetchStatus:
-    """update_fetch_status 関数のテスト"""
+class TestUpdateCollectionStatus:
+    """update_collection_status 関数のテスト"""
 
     def test_updates_status(self, temp_data_dir):
         """ステータスを更新する"""
@@ -274,13 +274,13 @@ class TestUpdateFetchStatus:
             unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
         ):
             data_collector.init_db()
-            data_collector.update_fetch_status("test-host", "success")
+            data_collector.update_collection_status("test-host", "success")
 
             # ステータスが保存されていることを確認
             import sqlite3
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
-            cursor.execute("SELECT status FROM fetch_status WHERE esxi_host = ?", ("test-host",))
+            cursor.execute("SELECT status FROM collection_status WHERE host = ?", ("test-host",))
             row = cursor.fetchone()
             conn.close()
 
