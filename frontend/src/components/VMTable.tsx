@@ -51,6 +51,33 @@ function ResourceBar({ used, total, label, color, unit }: ResourceBarProps) {
   );
 }
 
+interface MiniUsageBarProps {
+  percentage: number;
+  color: string;
+  label: string;
+}
+
+function MiniUsageBar({ percentage, color, label }: MiniUsageBarProps) {
+  const clampedPercentage = Math.min(Math.max(percentage, 0), 100);
+
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-xs text-gray-500 w-8">{label}</span>
+      <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden min-w-[40px]">
+        <div
+          style={{
+            width: `${clampedPercentage}%`,
+            height: '100%',
+            backgroundColor: color,
+            transition: 'width 0.5s ease-out',
+          }}
+        />
+      </div>
+      <span className="text-xs text-gray-600 w-10 text-right">{clampedPercentage.toFixed(0)}%</span>
+    </div>
+  );
+}
+
 export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb }: VMTableProps) {
   const [vmInfoMap, setVmInfoMap] = useState<Record<string, VMInfo | null>>({});
   const [loading, setLoading] = useState(true);
@@ -232,25 +259,60 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
               vms.map((vm) => {
                 const info = vmInfoMap[vm.name];
                 const powerState = getPowerStateInfo(info?.power_state || null);
+                const isPoweredOn = info?.power_state?.includes('poweredOn');
+
+                // Calculate usage percentages
+                const memoryUsagePercent = (info?.ram_mb && info?.memory_usage_mb)
+                  ? (info.memory_usage_mb / info.ram_mb) * 100
+                  : null;
+
+                // For CPU usage, we show MHz value since we don't have max MHz per VM
+                // But we can estimate a percentage based on typical assumption (2000 MHz per vCPU as baseline)
+                const estimatedCpuMaxMhz = (info?.cpu_count || 1) * 2000;
+                const cpuUsagePercent = info?.cpu_usage_mhz
+                  ? Math.min((info.cpu_usage_mhz / estimatedCpuMaxMhz) * 100, 100)
+                  : null;
+
+                const showUsage = isPoweredOn && (cpuUsagePercent !== null || memoryUsagePercent !== null);
 
                 return (
                   <tr key={vm.name} className="border-b border-gray-200 hover:bg-gray-50">
                     <td className="p-2">
-                      <span className="inline-flex items-center">
-                        <span className="mr-2">🔹</span>
-                        <span>{String(vm.name ?? '')}</span>
-                      </span>
+                      <div>
+                        <span className="inline-flex items-center">
+                          <span className="mr-2">🔹</span>
+                          <span>{String(vm.name ?? '')}</span>
+                        </span>
+                        {showUsage && (
+                          <div className="mt-1 ml-6 space-y-0.5">
+                            {cpuUsagePercent !== null && (
+                              <MiniUsageBar
+                                percentage={cpuUsagePercent}
+                                color="#f14668"
+                                label="CPU"
+                              />
+                            )}
+                            {memoryUsagePercent !== null && (
+                              <MiniUsageBar
+                                percentage={memoryUsagePercent}
+                                color="#3298dc"
+                                label="MEM"
+                              />
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </td>
-                    <td className="text-center p-2">
+                    <td className="text-center p-2 align-top">
                       {info?.cpu_count ?? '-'}
                     </td>
-                    <td className="text-center p-2">
+                    <td className="text-center p-2 align-top">
                       {formatRam(info?.ram_mb || null)}
                     </td>
-                    <td className="text-center p-2">
+                    <td className="text-center p-2 align-top">
                       {formatStorage(info?.storage_gb || null)}
                     </td>
-                    <td className="text-center p-2">
+                    <td className="text-center p-2 align-top">
                       <span className={`inline-block px-2 py-0.5 rounded text-xs ${powerState.tailwindClass}`}>
                         {powerState.label}
                       </span>

@@ -229,7 +229,14 @@ class TestCollectAllData:
         """認証情報がない場合"""
         from server_list.spec import data_collector
 
-        with unittest.mock.patch.object(data_collector, "load_secret", return_value={}):
+        with (
+            unittest.mock.patch.object(data_collector, "load_secret", return_value={}),
+            # Prometheus 関連の収集もモックする（DBアクセスを避ける）
+            unittest.mock.patch.object(data_collector, "collect_ilo_power_data"),
+            unittest.mock.patch.object(data_collector, "collect_prometheus_uptime_data", return_value=False),
+            unittest.mock.patch.object(data_collector, "collect_prometheus_zfs_data", return_value=False),
+            unittest.mock.patch.object(data_collector, "collect_prometheus_mount_data", return_value=False),
+        ):
             # 例外が発生しないことを確認
             data_collector.collect_all_data()
 

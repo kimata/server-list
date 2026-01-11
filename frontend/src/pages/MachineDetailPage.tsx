@@ -227,8 +227,62 @@ export function MachineDetailPage() {
       <section className="py-8">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            {/* 左カラム (2/3): 仮想マシン、ZFSプール、ファイルシステム */}
+            {/* 左カラム (2/3): リソース使用状況、仮想マシン、ZFSプール、ファイルシステム */}
             <div className="lg:col-span-2 order-2 lg:order-1 space-y-6">
+              {/* リソース使用状況 */}
+              {(uptimeInfo?.cpu_usage_percent != null || uptimeInfo?.memory_usage_percent != null) && (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h3 className="text-lg font-bold mb-4">リソース使用状況</h3>
+                  <div className="space-y-4">
+                    {uptimeInfo?.cpu_usage_percent != null && (
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm font-semibold">CPU使用率</span>
+                          <span className="text-sm">{uptimeInfo.cpu_usage_percent.toFixed(1)}%</span>
+                        </div>
+                        <div className="h-3 bg-gray-200 rounded-md overflow-hidden">
+                          <div
+                            style={{
+                              width: `${Math.min(uptimeInfo.cpu_usage_percent, 100)}%`,
+                              height: '100%',
+                              backgroundColor: uptimeInfo.cpu_usage_percent > 80 ? '#f14668' : '#3298dc',
+                              borderRadius: '6px',
+                              transition: 'width 0.5s ease-out',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {uptimeInfo?.memory_usage_percent != null && (
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm font-semibold">メモリ使用率</span>
+                          <span className="text-sm">
+                            {uptimeInfo.memory_usage_percent.toFixed(1)}%
+                            {uptimeInfo.memory_used_bytes != null && uptimeInfo.memory_total_bytes != null && (
+                              <span className="text-gray-500 ml-2">
+                                ({(uptimeInfo.memory_used_bytes / 1024 / 1024 / 1024).toFixed(1)} / {(uptimeInfo.memory_total_bytes / 1024 / 1024 / 1024).toFixed(1)} GB)
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="h-3 bg-gray-200 rounded-md overflow-hidden">
+                          <div
+                            style={{
+                              width: `${Math.min(uptimeInfo.memory_usage_percent, 100)}%`,
+                              height: '100%',
+                              backgroundColor: uptimeInfo.memory_usage_percent > 80 ? '#f14668' : '#48c774',
+                              borderRadius: '6px',
+                              transition: 'width 0.5s ease-out',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* 仮想マシン */}
               {machine.vm && machine.vm.length > 0 && (
                 <div className="bg-white rounded-lg shadow p-6">

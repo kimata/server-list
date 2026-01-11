@@ -52,6 +52,8 @@ export interface VMInfo {
   power_state: string | null;
   cached_power_state: string | null;
   esxi_host: string;
+  cpu_usage_mhz: number | null;
+  memory_usage_mb: number | null;
 }
 
 export interface VMInfoResponse {
@@ -67,6 +69,10 @@ export interface UptimeInfo {
   cpu_threads: number | null;
   cpu_cores: number | null;
   esxi_version: string | null;
+  cpu_usage_percent: number | null;
+  memory_usage_percent: number | null;
+  memory_total_bytes: number | null;
+  memory_used_bytes: number | null;
   collected_at: string;
 }
 

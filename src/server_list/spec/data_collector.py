@@ -119,6 +119,14 @@ def fetch_vm_data(si, esxi_host: str) -> list[dict]:
     vms = []
     for vm in container_view.view:
         try:
+            # Get CPU and memory usage from quickStats
+            cpu_usage_mhz = None
+            memory_usage_mb = None
+            if vm.summary and vm.summary.quickStats:
+                stats = vm.summary.quickStats
+                cpu_usage_mhz = stats.overallCpuUsage
+                memory_usage_mb = stats.guestMemoryUsage
+
             vm_info = {
                 "esxi_host": esxi_host,
                 "vm_name": vm.name,
@@ -126,6 +134,8 @@ def fetch_vm_data(si, esxi_host: str) -> list[dict]:
                 "ram_mb": vm.config.hardware.memoryMB if vm.config else None,
                 "storage_gb": get_vm_storage_size(vm) if vm.config else None,
                 "power_state": str(vm.runtime.powerState) if vm.runtime else None,
+                "cpu_usage_mhz": cpu_usage_mhz,
+                "memory_usage_mb": memory_usage_mb,
             }
             vms.append(vm_info)
         except Exception as e:
@@ -136,7 +146,7 @@ def fetch_vm_data(si, esxi_host: str) -> list[dict]:
 
 
 def fetch_host_info(si, host: str) -> dict | None:
-    """Fetch host info including uptime, CPU, and ESXi version from ESXi host."""
+    """Fetch host info including uptime, CPU, memory usage, and ESXi version from ESXi host."""
     try:
         content = si.RetrieveContent()
 
@@ -157,6 +167,10 @@ def fetch_host_info(si, host: str) -> dict | None:
                             cpu_threads = None
                             cpu_cores = None
                             esxi_version = None
+                            cpu_usage_percent = None
+                            memory_usage_percent = None
+                            memory_total_bytes = None
+                            memory_used_bytes = None
 
                             # Get CPU info from hardware
                             if hasattr(host_system, "hardware") and host_system.hardware:
@@ -164,6 +178,28 @@ def fetch_host_info(si, host: str) -> dict | None:
                                 if hasattr(hw, "cpuInfo") and hw.cpuInfo:
                                     cpu_threads = hw.cpuInfo.numCpuThreads
                                     cpu_cores = hw.cpuInfo.numCpuCores
+
+                                # Get total memory
+                                if hasattr(hw, "memorySize") and hw.memorySize:
+                                    memory_total_bytes = hw.memorySize
+
+                            # Get CPU and memory usage from quickStats
+                            if hasattr(host_system, "summary") and host_system.summary:
+                                summary = host_system.summary
+                                if hasattr(summary, "quickStats") and summary.quickStats:
+                                    stats = summary.quickStats
+                                    # CPU usage in MHz
+                                    if stats.overallCpuUsage is not None and host_system.hardware:
+                                        hw = host_system.hardware
+                                        if hw.cpuInfo and hw.cpuInfo.hz and hw.cpuInfo.numCpuCores:
+                                            # Total CPU capacity in MHz
+                                            total_cpu_mhz = (hw.cpuInfo.hz / 1_000_000) * hw.cpuInfo.numCpuCores
+                                            cpu_usage_percent = (stats.overallCpuUsage / total_cpu_mhz) * 100
+
+                                    # Memory usage in MB
+                                    if stats.overallMemoryUsage is not None and memory_total_bytes:
+                                        memory_used_bytes = stats.overallMemoryUsage * 1024 * 1024
+                                        memory_usage_percent = (memory_used_bytes / memory_total_bytes) * 100
 
                             # Get ESXi version from config.product
                             if hasattr(host_system, "config") and host_system.config:
@@ -181,6 +217,10 @@ def fetch_host_info(si, host: str) -> dict | None:
                                     "cpu_threads": cpu_threads,
                                     "cpu_cores": cpu_cores,
                                     "esxi_version": esxi_version,
+                                    "cpu_usage_percent": cpu_usage_percent,
+                                    "memory_usage_percent": memory_usage_percent,
+                                    "memory_total_bytes": memory_total_bytes,
+                                    "memory_used_bytes": memory_used_bytes,
                                 }
                         except Exception as e:
                             logging.warning("Error getting host info: %s", e)
@@ -485,6 +525,142 @@ def fetch_prometheus_windows_uptime(prometheus_url: str, instance: str) -> dict 
         return None
 
 
+def fetch_prometheus_linux_usage(prometheus_url: str, instance: str) -> dict | None:
+    """Fetch CPU and memory usage from Prometheus for Linux hosts.
+
+    Uses node_exporter metrics:
+    - CPU: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+    - Memory: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100
+
+    Args:
+        prometheus_url: Prometheus server URL
+        instance: Prometheus instance label
+
+    Returns:
+        Dict with cpu_usage_percent, memory_usage_percent, memory_total_bytes, memory_used_bytes
+    """
+    url = f"{prometheus_url}/api/v1/query"
+    result: dict = {}
+
+    try:
+        # Get CPU usage (100 - idle percentage)
+        cpu_query = f'100 - (avg by (instance) (rate(node_cpu_seconds_total{{instance=~"{instance}.*",mode="idle"}}[5m])) * 100)'
+        response = requests.get(url, params={"query": cpu_query}, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "success":
+                results = data.get("data", {}).get("result", [])
+                if results:
+                    value = results[0].get("value", [None, None])[1]
+                    if value is not None:
+                        result["cpu_usage_percent"] = float(value)
+
+        # Get memory total
+        mem_total_query = f'node_memory_MemTotal_bytes{{instance=~"{instance}.*"}}'
+        response = requests.get(url, params={"query": mem_total_query}, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "success":
+                results = data.get("data", {}).get("result", [])
+                if results:
+                    value = results[0].get("value", [None, None])[1]
+                    if value is not None:
+                        result["memory_total_bytes"] = float(value)
+
+        # Get memory available
+        mem_avail_query = f'node_memory_MemAvailable_bytes{{instance=~"{instance}.*"}}'
+        response = requests.get(url, params={"query": mem_avail_query}, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "success":
+                results = data.get("data", {}).get("result", [])
+                if results:
+                    value = results[0].get("value", [None, None])[1]
+                    if value is not None:
+                        mem_avail = float(value)
+                        if "memory_total_bytes" in result:
+                            result["memory_used_bytes"] = result["memory_total_bytes"] - mem_avail
+                            result["memory_usage_percent"] = (
+                                result["memory_used_bytes"] / result["memory_total_bytes"]
+                            ) * 100
+
+        if result:
+            return result
+
+    except Exception as e:
+        logging.warning("Error fetching Linux usage from Prometheus: %s", e)
+
+    return None
+
+
+def fetch_prometheus_windows_usage(prometheus_url: str, instance: str) -> dict | None:
+    """Fetch CPU and memory usage from Prometheus for Windows hosts.
+
+    Uses windows_exporter metrics:
+    - CPU: 100 - (avg by (instance) (rate(windows_cpu_time_total{mode="idle"}[5m])) * 100)
+    - Memory: windows_os_physical_memory_free_bytes, windows_cs_physical_memory_bytes
+
+    Args:
+        prometheus_url: Prometheus server URL
+        instance: Prometheus instance label
+
+    Returns:
+        Dict with cpu_usage_percent, memory_usage_percent, memory_total_bytes, memory_used_bytes
+    """
+    url = f"{prometheus_url}/api/v1/query"
+    result: dict = {}
+
+    try:
+        # Get CPU usage (100 - idle percentage)
+        cpu_query = f'100 - (avg by (instance) (rate(windows_cpu_time_total{{instance=~"{instance}.*",mode="idle"}}[5m])) * 100)'
+        response = requests.get(url, params={"query": cpu_query}, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "success":
+                results = data.get("data", {}).get("result", [])
+                if results:
+                    value = results[0].get("value", [None, None])[1]
+                    if value is not None:
+                        result["cpu_usage_percent"] = float(value)
+
+        # Get memory total (windows_cs_physical_memory_bytes)
+        mem_total_query = f'windows_cs_physical_memory_bytes{{instance=~"{instance}.*"}}'
+        response = requests.get(url, params={"query": mem_total_query}, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "success":
+                results = data.get("data", {}).get("result", [])
+                if results:
+                    value = results[0].get("value", [None, None])[1]
+                    if value is not None:
+                        result["memory_total_bytes"] = float(value)
+
+        # Get memory free (windows_os_physical_memory_free_bytes)
+        mem_free_query = f'windows_os_physical_memory_free_bytes{{instance=~"{instance}.*"}}'
+        response = requests.get(url, params={"query": mem_free_query}, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "success":
+                results = data.get("data", {}).get("result", [])
+                if results:
+                    value = results[0].get("value", [None, None])[1]
+                    if value is not None:
+                        mem_free = float(value)
+                        if "memory_total_bytes" in result:
+                            result["memory_used_bytes"] = result["memory_total_bytes"] - mem_free
+                            result["memory_usage_percent"] = (
+                                result["memory_used_bytes"] / result["memory_total_bytes"]
+                            ) * 100
+
+        if result:
+            return result
+
+    except Exception as e:
+        logging.warning("Error fetching Windows usage from Prometheus: %s", e)
+
+    return None
+
+
 def get_prometheus_instance(host: str, instance_map: dict) -> str:
     """Get Prometheus instance name for a host.
 
@@ -509,9 +685,9 @@ def get_prometheus_instance(host: str, instance_map: dict) -> str:
 
 
 def collect_prometheus_uptime_data() -> bool:
-    """Collect uptime data from Prometheus for configured hosts.
+    """Collect uptime and usage data from Prometheus for configured hosts.
 
-    Automatically collects uptime for machines without ESXi configuration.
+    Automatically collects uptime and CPU/memory usage for machines without ESXi configuration.
     Uses node_boot_time_seconds for Linux and windows_system_system_up_time for Windows.
     Instance name is derived from FQDN (first part) unless explicitly
     configured in prometheus.instance_map.
@@ -542,13 +718,16 @@ def collect_prometheus_uptime_data() -> bool:
 
     for host, os_type in target_machines:
         instance = get_prometheus_instance(host, instance_map)
-        logging.info("Collecting uptime from Prometheus for %s (instance: %s, os: %s)...", host, instance, os_type)
+        logging.info("Collecting uptime and usage from Prometheus for %s (instance: %s, os: %s)...", host, instance, os_type)
 
         # Use appropriate fetch function based on OS
-        if os_type.lower() == "windows":
+        is_windows = os_type.lower() == "windows"
+        if is_windows:
             uptime_data = fetch_prometheus_windows_uptime(prometheus_url, instance)
+            usage_data = fetch_prometheus_windows_usage(prometheus_url, instance)
         else:
             uptime_data = fetch_prometheus_uptime(prometheus_url, instance)
+            usage_data = fetch_prometheus_linux_usage(prometheus_url, instance)
 
         if uptime_data:
             host_info = {
@@ -559,6 +738,10 @@ def collect_prometheus_uptime_data() -> bool:
                 "cpu_threads": None,
                 "cpu_cores": None,
                 "esxi_version": None,
+                "cpu_usage_percent": usage_data.get("cpu_usage_percent") if usage_data else None,
+                "memory_usage_percent": usage_data.get("memory_usage_percent") if usage_data else None,
+                "memory_total_bytes": usage_data.get("memory_total_bytes") if usage_data else None,
+                "memory_used_bytes": usage_data.get("memory_used_bytes") if usage_data else None,
             }
             save_host_info(host_info)
             logging.info("  Cached uptime for %s: %.1f days",
@@ -1083,8 +1266,9 @@ def save_vm_data(esxi_host: str, vms: list[dict]):
         for vm in vms:
             cursor.execute("""
                 INSERT INTO vm_info
-                (esxi_host, vm_name, cpu_count, ram_mb, storage_gb, power_state, collected_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (esxi_host, vm_name, cpu_count, ram_mb, storage_gb, power_state,
+                 cpu_usage_mhz, memory_usage_mb, collected_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 vm["esxi_host"],
                 vm["vm_name"],
@@ -1092,6 +1276,8 @@ def save_vm_data(esxi_host: str, vms: list[dict]):
                 vm["ram_mb"],
                 vm["storage_gb"],
                 vm["power_state"],
+                vm.get("cpu_usage_mhz"),
+                vm.get("memory_usage_mb"),
                 collected_at
             ))
 
@@ -1099,7 +1285,7 @@ def save_vm_data(esxi_host: str, vms: list[dict]):
 
 
 def save_host_info(host_info: dict):
-    """Save host info (uptime + CPU + ESXi version) to SQLite cache."""
+    """Save host info (uptime + CPU + ESXi version + usage) to SQLite cache."""
     collected_at = datetime.now().isoformat()
 
     with _db_lock, get_connection(DB_PATH) as conn:
@@ -1107,8 +1293,9 @@ def save_host_info(host_info: dict):
 
         cursor.execute("""
             INSERT OR REPLACE INTO uptime_info
-            (host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version, collected_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version,
+             cpu_usage_percent, memory_usage_percent, memory_total_bytes, memory_used_bytes, collected_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             host_info["host"],
             host_info.get("boot_time"),
@@ -1117,6 +1304,10 @@ def save_host_info(host_info: dict):
             host_info.get("cpu_threads"),
             host_info.get("cpu_cores"),
             host_info.get("esxi_version"),
+            host_info.get("cpu_usage_percent"),
+            host_info.get("memory_usage_percent"),
+            host_info.get("memory_total_bytes"),
+            host_info.get("memory_used_bytes"),
             collected_at
         ))
 
@@ -1136,9 +1327,10 @@ def save_host_info_failed(host: str):
 
         cursor.execute("""
             INSERT OR REPLACE INTO uptime_info
-            (host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version, collected_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (host, None, None, "unknown", None, None, None, collected_at))
+            (host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version,
+             cpu_usage_percent, memory_usage_percent, memory_total_bytes, memory_used_bytes, collected_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (host, None, None, "unknown", None, None, None, None, None, None, None, collected_at))
 
         conn.commit()
 
@@ -1192,13 +1384,15 @@ def get_vm_info(vm_name: str, esxi_host: str | None = None) -> dict | None:
 
         if esxi_host:
             cursor.execute("""
-                SELECT vm_name, cpu_count, ram_mb, storage_gb, power_state, esxi_host, collected_at
+                SELECT vm_name, cpu_count, ram_mb, storage_gb, power_state, esxi_host,
+                       cpu_usage_mhz, memory_usage_mb, collected_at
                 FROM vm_info
                 WHERE vm_name = ? AND esxi_host = ?
             """, (vm_name, esxi_host))
         else:
             cursor.execute("""
-                SELECT vm_name, cpu_count, ram_mb, storage_gb, power_state, esxi_host, collected_at
+                SELECT vm_name, cpu_count, ram_mb, storage_gb, power_state, esxi_host,
+                       cpu_usage_mhz, memory_usage_mb, collected_at
                 FROM vm_info
                 WHERE vm_name = ?
             """, (vm_name,))
@@ -1213,7 +1407,9 @@ def get_vm_info(vm_name: str, esxi_host: str | None = None) -> dict | None:
                 "storage_gb": round(row[3], 1) if row[3] else None,
                 "power_state": row[4],
                 "esxi_host": row[5],
-                "collected_at": row[6],
+                "cpu_usage_mhz": row[6],
+                "memory_usage_mb": row[7],
+                "collected_at": row[8],
             }
 
     return None
@@ -1225,7 +1421,8 @@ def get_all_vm_info_for_host(esxi_host: str) -> list[dict]:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT vm_name, cpu_count, ram_mb, storage_gb, power_state, collected_at
+            SELECT vm_name, cpu_count, ram_mb, storage_gb, power_state,
+                   cpu_usage_mhz, memory_usage_mb, collected_at
             FROM vm_info
             WHERE esxi_host = ?
         """, (esxi_host,))
@@ -1239,7 +1436,9 @@ def get_all_vm_info_for_host(esxi_host: str) -> list[dict]:
                 "ram_mb": row[2],
                 "storage_gb": round(row[3], 1) if row[3] else None,
                 "power_state": row[4],
-                "collected_at": row[5],
+                "cpu_usage_mhz": row[5],
+                "memory_usage_mb": row[6],
+                "collected_at": row[7],
             }
             for row in rows
         ]
@@ -1251,7 +1450,8 @@ def get_uptime_info(host: str) -> dict | None:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version, collected_at
+            SELECT host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version,
+                   cpu_usage_percent, memory_usage_percent, memory_total_bytes, memory_used_bytes, collected_at
             FROM uptime_info
             WHERE host = ?
         """, (host,))
@@ -1267,7 +1467,11 @@ def get_uptime_info(host: str) -> dict | None:
                 "cpu_threads": row[4],
                 "cpu_cores": row[5],
                 "esxi_version": row[6],
-                "collected_at": row[7],
+                "cpu_usage_percent": row[7],
+                "memory_usage_percent": row[8],
+                "memory_total_bytes": row[9],
+                "memory_used_bytes": row[10],
+                "collected_at": row[11],
             }
 
     return None
@@ -1279,7 +1483,8 @@ def get_all_uptime_info() -> dict[str, dict]:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version, collected_at
+            SELECT host, boot_time, uptime_seconds, status, cpu_threads, cpu_cores, esxi_version,
+                   cpu_usage_percent, memory_usage_percent, memory_total_bytes, memory_used_bytes, collected_at
             FROM uptime_info
         """)
 
@@ -1293,7 +1498,11 @@ def get_all_uptime_info() -> dict[str, dict]:
                 "cpu_threads": row[4],
                 "cpu_cores": row[5],
                 "esxi_version": row[6],
-                "collected_at": row[7],
+                "cpu_usage_percent": row[7],
+                "memory_usage_percent": row[8],
+                "memory_total_bytes": row[9],
+                "memory_used_bytes": row[10],
+                "collected_at": row[11],
             }
             for row in rows
         }

@@ -9,11 +9,13 @@ CREATE TABLE IF NOT EXISTS vm_info (
     ram_mb INTEGER,
     storage_gb REAL,
     power_state TEXT,
+    cpu_usage_mhz INTEGER,
+    memory_usage_mb INTEGER,
     collected_at TIMESTAMP NOT NULL,
     UNIQUE(esxi_host, vm_name)
 );
 
--- Host info table (uptime + CPU info + ESXi version)
+-- Host info table (uptime + CPU info + ESXi version + usage)
 CREATE TABLE IF NOT EXISTS uptime_info (
     host TEXT PRIMARY KEY,
     boot_time TEXT,
@@ -22,6 +24,10 @@ CREATE TABLE IF NOT EXISTS uptime_info (
     cpu_threads INTEGER,
     cpu_cores INTEGER,
     esxi_version TEXT,
+    cpu_usage_percent REAL,
+    memory_usage_percent REAL,
+    memory_total_bytes REAL,
+    memory_used_bytes REAL,
     collected_at TIMESTAMP NOT NULL
 );
 
@@ -69,4 +75,6 @@ CREATE TABLE IF NOT EXISTS mount_info (
 
 -- Migration notes:
 -- - esxi_version column in uptime_info: handled in code via migrate_schema()
+-- - cpu_usage_mhz, memory_usage_mb columns in vm_info: handled in code via migrate_schema()
+-- - cpu_usage_percent, memory_usage_percent, memory_total_bytes, memory_used_bytes columns in uptime_info: handled in code via migrate_schema()
 -- SQLite doesn't support IF NOT EXISTS for ALTER TABLE

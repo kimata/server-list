@@ -130,3 +130,35 @@ def migrate_schema(db_path: Path) -> None:
         if "esxi_version" not in columns:
             cursor.execute("ALTER TABLE uptime_info ADD COLUMN esxi_version TEXT")
             conn.commit()
+
+        # Check if cpu_usage_mhz and memory_usage_mb columns exist in vm_info
+        cursor.execute("PRAGMA table_info(vm_info)")
+        vm_columns = [row[1] for row in cursor.fetchall()]
+
+        if "cpu_usage_mhz" not in vm_columns:
+            cursor.execute("ALTER TABLE vm_info ADD COLUMN cpu_usage_mhz INTEGER")
+            conn.commit()
+
+        if "memory_usage_mb" not in vm_columns:
+            cursor.execute("ALTER TABLE vm_info ADD COLUMN memory_usage_mb INTEGER")
+            conn.commit()
+
+        # Check if usage columns exist in uptime_info
+        cursor.execute("PRAGMA table_info(uptime_info)")
+        uptime_columns = [row[1] for row in cursor.fetchall()]
+
+        if "cpu_usage_percent" not in uptime_columns:
+            cursor.execute("ALTER TABLE uptime_info ADD COLUMN cpu_usage_percent REAL")
+            conn.commit()
+
+        if "memory_usage_percent" not in uptime_columns:
+            cursor.execute("ALTER TABLE uptime_info ADD COLUMN memory_usage_percent REAL")
+            conn.commit()
+
+        if "memory_total_bytes" not in uptime_columns:
+            cursor.execute("ALTER TABLE uptime_info ADD COLUMN memory_total_bytes REAL")
+            conn.commit()
+
+        if "memory_used_bytes" not in uptime_columns:
+            cursor.execute("ALTER TABLE uptime_info ADD COLUMN memory_used_bytes REAL")
+            conn.commit()
