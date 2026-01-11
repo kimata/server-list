@@ -113,22 +113,16 @@ def generate_machine_page_ogp(
 
     if machine:
         # Build description from machine specs
-        specs = []
-        if machine.mode:
-            specs.append(machine.mode)
-        if machine.cpu:
-            specs.append(machine.cpu)
-        if machine.ram:
-            specs.append(f"RAM: {machine.ram}")
+        specs = [machine.mode, machine.cpu, f"RAM: {machine.ram}"]
         if machine.vm:
             specs.append(f"VM: {len(machine.vm)}台")
 
-        description = " / ".join(specs) if specs else f"{machine_name} のサーバー情報"
+        description = " / ".join(specs)
         title = f"{machine_name} - サーバー詳細"
 
         # Check if image exists
         image_url = None
-        if image_dir and machine.mode:
+        if image_dir:
             # Normalize model name for image filename
             image_name = _normalize_model_name(machine.mode)
             for ext in [".png", ".jpg", ".jpeg", ".webp"]:

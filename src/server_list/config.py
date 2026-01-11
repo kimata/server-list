@@ -14,15 +14,15 @@ class StorageConfig:
     """Storage device configuration."""
 
     name: str
-    model: str | None = None
-    volume: str | None = None
+    model: str
+    volume: str
 
     @classmethod
     def from_dict(cls, data: dict) -> "StorageConfig":
         return cls(
             name=data["name"],
-            model=data.get("model"),
-            volume=data.get("volume"),
+            model=data["model"],
+            volume=data["volume"],
         )
 
 
@@ -62,11 +62,11 @@ class MachineConfig:
     """Machine (server) configuration."""
 
     name: str
-    mode: str | None = None  # Server model name
-    cpu: str | None = None
-    ram: str | None = None
+    mode: str  # Server model name
+    cpu: str
+    ram: str
+    os: str
     storage: list[StorageConfig] | str = field(default_factory=list)
-    os: str | None = None
     esxi: str | None = None
     ilo: str | None = None
     vm: list[VmConfig] = field(default_factory=list)
@@ -84,11 +84,11 @@ class MachineConfig:
         mount = [MountConfig.from_dict(m) for m in data.get("mount", [])]
         return cls(
             name=data["name"],
-            mode=data.get("mode"),
-            cpu=data.get("cpu"),
-            ram=data.get("ram"),
+            mode=data["mode"],
+            cpu=data["cpu"],
+            ram=data["ram"],
+            os=data["os"],
             storage=storage,
-            os=data.get("os"),
             esxi=data.get("esxi"),
             ilo=data.get("ilo"),
             vm=vm,
@@ -97,13 +97,13 @@ class MachineConfig:
 
     def to_dict(self) -> dict:
         """Convert to dictionary for API responses."""
-        result: dict = {"name": self.name}
-        if self.mode:
-            result["mode"] = self.mode
-        if self.cpu:
-            result["cpu"] = self.cpu
-        if self.ram:
-            result["ram"] = self.ram
+        result: dict = {
+            "name": self.name,
+            "mode": self.mode,
+            "cpu": self.cpu,
+            "ram": self.ram,
+            "os": self.os,
+        }
         if self.storage:
             if isinstance(self.storage, str):
                 result["storage"] = self.storage
@@ -112,8 +112,6 @@ class MachineConfig:
                     {"name": s.name, "model": s.model, "volume": s.volume}
                     for s in self.storage
                 ]
-        if self.os:
-            result["os"] = self.os
         if self.esxi:
             result["esxi"] = self.esxi
         if self.ilo:
@@ -133,13 +131,13 @@ class WebappConfig:
     """Web application configuration."""
 
     static_dir_path: str
-    image_dir_path: str | None = None
+    image_dir_path: str
 
     @classmethod
     def from_dict(cls, data: dict) -> "WebappConfig":
         return cls(
             static_dir_path=data["static_dir_path"],
-            image_dir_path=data.get("image_dir_path"),
+            image_dir_path=data["image_dir_path"],
         )
 
     def get_static_dir(self, base_dir: Path) -> Path:
@@ -151,32 +149,28 @@ class WebappConfig:
 
     def get_image_dir(self, base_dir: Path) -> Path:
         """Get absolute path to image directory."""
-        if self.image_dir_path:
-            path = Path(self.image_dir_path)
-            if not path.is_absolute():
-                path = base_dir / path
-            return path
-        return base_dir / "img"
+        path = Path(self.image_dir_path)
+        if not path.is_absolute():
+            path = base_dir / path
+        return path
 
 
 @dataclass
 class DataConfig:
     """Data/cache directory configuration."""
 
-    cache: str | None = None
+    cache: str
 
     @classmethod
     def from_dict(cls, data: dict) -> "DataConfig":
-        return cls(cache=data.get("cache"))
+        return cls(cache=data["cache"])
 
     def get_cache_dir(self, base_dir: Path) -> Path:
         """Get absolute path to cache directory."""
-        if self.cache:
-            path = Path(self.cache)
-            if not path.is_absolute():
-                path = base_dir / path
-            return path
-        return base_dir / "data"
+        path = Path(self.cache)
+        if not path.is_absolute():
+            path = base_dir / path
+        return path
 
 
 @dataclass
@@ -184,19 +178,19 @@ class Config:
     """Main configuration class representing config.yaml."""
 
     webapp: WebappConfig
+    data: DataConfig
     machine: list[MachineConfig]
-    data: DataConfig = field(default_factory=DataConfig)
 
     @classmethod
     def from_dict(cls, data: dict) -> "Config":
         """Create Config from dictionary (parsed YAML)."""
         webapp = WebappConfig.from_dict(data["webapp"])
-        machines = [MachineConfig.from_dict(m) for m in data.get("machine", [])]
-        data_config = DataConfig.from_dict(data.get("data", {}))
+        data_config = DataConfig.from_dict(data["data"])
+        machines = [MachineConfig.from_dict(m) for m in data["machine"]]
         return cls(
             webapp=webapp,
-            machine=machines,
             data=data_config,
+            machine=machines,
         )
 
     @classmethod

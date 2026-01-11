@@ -15,7 +15,8 @@
                 }
             },
             "required": [
-                "static_dir_path"
+                "static_dir_path",
+                "image_dir_path"
             ]
         },
         "data": {
@@ -25,7 +26,30 @@
                     "type": "string",
                     "description": "Path to the cache/data directory for SQLite databases"
                 }
-            }
+            },
+            "required": [
+                "cache"
+            ]
+        },
+        "prometheus": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Prometheus server URL"
+                },
+                "instance_map": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "description": "Mapping from hostname to Prometheus instance label"
+                }
+            },
+            "required": [
+                "url"
+            ]
         },
         "machine": {
             "type": "array",
@@ -33,17 +57,24 @@
                 "type": "object",
                 "properties": {
                     "name": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "FQDN of the machine"
                     },
                     "mode": {
                         "type": "string",
                         "description": "Server model name"
                     },
                     "cpu": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "CPU model name"
                     },
                     "ram": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "RAM capacity"
+                    },
+                    "os": {
+                        "type": "string",
+                        "description": "Operating system (ESXi, Linux, Windows)"
                     },
                     "storage": {
                         "oneOf": [
@@ -53,16 +84,19 @@
                                     "type": "object",
                                     "properties": {
                                         "name": {
-                                            "type": "string"
+                                            "type": "string",
+                                            "description": "Storage device name"
                                         },
                                         "model": {
-                                            "type": "string"
+                                            "type": "string",
+                                            "description": "Storage device model number"
                                         },
                                         "volume": {
-                                            "type": "string"
+                                            "type": "string",
+                                            "description": "Storage capacity"
                                         }
                                     },
-                                    "required": ["name"]
+                                    "required": ["name", "model", "volume"]
                                 }
                             },
                             {
@@ -72,16 +106,15 @@
                             }
                         ]
                     },
-                    "os": {
-                        "type": "string"
-                    },
                     "esxi": {
                         "type": "string",
-                        "format": "uri"
+                        "format": "uri",
+                        "description": "ESXi web UI URL"
                     },
                     "ilo": {
                         "type": "string",
-                        "format": "uri"
+                        "format": "uri",
+                        "description": "iLO/BMC web UI URL"
                     },
                     "vm": {
                         "type": "array",
@@ -93,7 +126,8 @@
                                 }
                             },
                             "required": ["name"]
-                        }
+                        },
+                        "description": "List of VMs (usually auto-populated from ESXi)"
                     },
                     "mount": {
                         "type": "array",
@@ -119,12 +153,13 @@
                         "description": "Mount points to monitor via Prometheus (node_exporter or windows_exporter)"
                     }
                 },
-                "required": ["name"]
+                "required": ["name", "mode", "cpu", "ram", "os"]
             }
         }
     },
     "required": [
         "webapp",
+        "data",
         "machine"
     ]
 }

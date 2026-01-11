@@ -60,7 +60,8 @@ class TestMain:
     def test_main_with_default_args(self):
         """デフォルト引数でのテスト"""
         mock_config = {
-            "webapp": {"static_dir_path": "frontend/dist"},
+            "webapp": {"static_dir_path": "frontend/dist", "image_dir_path": "img"},
+            "data": {"cache": "./data"},
             "machine": [],
         }
 
@@ -83,7 +84,8 @@ class TestMain:
     def test_main_with_custom_port(self):
         """カスタムポートでのテスト"""
         mock_config = {
-            "webapp": {"static_dir_path": "frontend/dist"},
+            "webapp": {"static_dir_path": "frontend/dist", "image_dir_path": "img"},
+            "data": {"cache": "./data"},
             "machine": [],
         }
 
@@ -107,7 +109,8 @@ class TestMain:
     def test_main_with_debug_mode(self):
         """デバッグモードでのテスト"""
         mock_config = {
-            "webapp": {"static_dir_path": "frontend/dist"},
+            "webapp": {"static_dir_path": "frontend/dist", "image_dir_path": "img"},
+            "data": {"cache": "./data"},
             "machine": [],
         }
 

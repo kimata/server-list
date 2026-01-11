@@ -37,6 +37,10 @@ def sample_config():
     return {
         "webapp": {
             "static_dir_path": "frontend/dist",
+            "image_dir_path": "img",
+        },
+        "data": {
+            "cache": "./data",
         },
         "machine": [
             {
@@ -44,10 +48,10 @@ def sample_config():
                 "mode": "Test Server Model",
                 "cpu": "Intel Core i7-12700K",
                 "ram": "64 GB",
+                "os": "ESXi 8.0",
                 "storage": [
                     {"name": "Test SSD", "model": "TEST-SSD-001", "volume": "1 TB"},
                 ],
-                "os": "ESXi 8.0",
                 "esxi": "https://test-server-1.example.com/",
             },
         ],
