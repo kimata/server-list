@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { VirtualMachine, VMInfo } from '../types/config';
 import { useEventSource } from '../hooks/useEventSource';
 import { formatRam, formatStorage, getPowerStateInfo } from '../utils/formatters';
@@ -152,6 +152,24 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
     return null;
   }
 
+  // Sort VMs: running VMs first (alphabetically), then stopped VMs (alphabetically)
+  const sortedVms = useMemo(() => {
+    return [...vms].sort((a, b) => {
+      const infoA = vmInfoMap[a.name];
+      const infoB = vmInfoMap[b.name];
+      const isPoweredOnA = infoA?.power_state?.includes('poweredOn') ?? false;
+      const isPoweredOnB = infoB?.power_state?.includes('poweredOn') ?? false;
+
+      // First, sort by power state (running first)
+      if (isPoweredOnA !== isPoweredOnB) {
+        return isPoweredOnA ? -1 : 1;
+      }
+
+      // Then, sort alphabetically by name
+      return a.name.localeCompare(b.name);
+    });
+  }, [vms, vmInfoMap]);
+
   // Calculate totals
   // CPU and RAM: only count powered on VMs (use cached_power_state for calculation)
   // Storage: count all VMs (allocated regardless of power state)
@@ -256,7 +274,7 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
                 </td>
               </tr>
             ) : (
-              vms.map((vm) => {
+              sortedVms.map((vm) => {
                 const info = vmInfoMap[vm.name];
                 const powerState = getPowerStateInfo(info?.power_state || null);
                 const isPoweredOn = info?.power_state?.includes('poweredOn');
