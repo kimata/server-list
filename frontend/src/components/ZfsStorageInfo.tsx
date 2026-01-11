@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { ServerStackIcon } from '@heroicons/react/24/outline';
 import type { ZfsPoolInfo } from '../types/config';
 import { useEventSource } from '../hooks/useEventSource';
 
@@ -66,7 +67,10 @@ export function ZfsStorageInfo({ hostName }: ZfsStorageInfoProps) {
   if (loading) {
     return (
       <div className="zfs-storage-info">
-        <h3 className="text-lg font-bold mb-4">🗄️ ZFS プール</h3>
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <ServerStackIcon className="w-5 h-5" />
+          ZFS プール
+        </h3>
         <p className="text-gray-500 text-sm">読み込み中...</p>
       </div>
     );
@@ -78,7 +82,10 @@ export function ZfsStorageInfo({ hostName }: ZfsStorageInfoProps) {
 
   return (
     <div className="zfs-storage-info">
-      <h3 className="text-lg font-bold mb-4">🗄️ ZFS プール</h3>
+      <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+        <ServerStackIcon className="w-5 h-5" />
+        ZFS プール
+      </h3>
       <div className="space-y-3">
         {pools.map((pool) => {
           const usedPercent = pool.size_bytes && pool.allocated_bytes

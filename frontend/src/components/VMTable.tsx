@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { CloudIcon } from '@heroicons/react/24/outline';
 import type { VirtualMachine, VMInfo } from '../types/config';
 import { useEventSource } from '../hooks/useEventSource';
 import { formatRam, formatStorage, getPowerStateInfo } from '../utils/formatters';
@@ -196,12 +197,10 @@ export function VMTable({ vms, esxiHost, hostCpuCount, hostRamGb, hostStorageGb 
   return (
     <div className="vm-table-container">
       <div className="flex justify-between items-center mb-4">
-        <h4 className="text-lg font-bold">
-          <span className="inline-flex items-center">
-            <span className="mr-2">☁️</span>
-            <span>仮想マシン ({vms.length}台)</span>
-          </span>
-        </h4>
+        <h3 className="text-lg font-bold flex items-center gap-2">
+          <CloudIcon className="w-5 h-5" />
+          仮想マシン ({vms.length}台)
+        </h3>
         <button
           className="p-1 bg-transparent border-none cursor-pointer disabled:cursor-wait text-gray-600 hover:text-gray-800 transition-colors"
           onClick={handleRefresh}

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { WrenchScrewdriverIcon, ChartBarIcon, BoltIcon } from '@heroicons/react/24/outline';
 import type { Config, Machine, UptimeInfo, PowerInfo } from '../types/config';
 import { StorageInfo } from '../components/StorageInfo';
 import { ZfsStorageInfo } from '../components/ZfsStorageInfo';
@@ -246,7 +247,10 @@ export function MachineDetailPage() {
 
               {/* ハードウェア仕様 */}
               <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-bold mb-4">🔧 ハードウェア仕様</h3>
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <WrenchScrewdriverIcon className="w-5 h-5" />
+                  ハードウェア仕様
+                </h3>
                 <div className="specs-section">
                   <div className="spec-item mb-4">
                     <div className="flex items-center mb-2">
@@ -307,7 +311,10 @@ export function MachineDetailPage() {
               {/* リソース使用状況 */}
               {(uptimeInfo?.cpu_usage_percent != null || uptimeInfo?.memory_usage_percent != null) && (
                 <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-bold mb-4">📊 リソース使用状況</h3>
+                  <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                    <ChartBarIcon className="w-5 h-5" />
+                    リソース使用状況
+                  </h3>
                   <div className="space-y-4">
                     {uptimeInfo?.cpu_usage_percent != null && (
                       <div>
@@ -399,7 +406,10 @@ export function MachineDetailPage() {
 
               {/* クイックアクション */}
               <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-bold mb-4">⚡ クイックアクション</h3>
+                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  <BoltIcon className="w-5 h-5" />
+                  クイックアクション
+                </h3>
                 <div className="space-y-2">
                   <button
                     className="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded transition-colors"

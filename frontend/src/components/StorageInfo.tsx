@@ -1,3 +1,4 @@
+import { CircleStackIcon } from '@heroicons/react/24/outline';
 import type { Storage } from '../types/config';
 
 interface StorageInfoProps {
@@ -8,7 +9,10 @@ export function StorageInfo({ storage }: StorageInfoProps) {
   if (!storage || !Array.isArray(storage) || storage.length === 0) {
     return (
       <div className="storage-info">
-        <h3 className="text-lg font-bold mb-4">💾 ストレージ</h3>
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <CircleStackIcon className="w-5 h-5" />
+          ストレージ
+        </h3>
         <p className="text-gray-500 text-sm">ストレージ情報がありません</p>
       </div>
     );
@@ -16,7 +20,10 @@ export function StorageInfo({ storage }: StorageInfoProps) {
 
   return (
     <div className="storage-info">
-      <h3 className="text-lg font-bold mb-4">💾 ストレージ</h3>
+      <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+        <CircleStackIcon className="w-5 h-5" />
+        ストレージ
+      </h3>
       <div>
         {storage.map((disk, index) => (
           <div key={index} className="storage-item rounded">

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { FolderIcon } from '@heroicons/react/24/outline';
 import type { MountInfo } from '../types/config';
 import { useEventSource } from '../hooks/useEventSource';
 
@@ -51,7 +52,10 @@ export function MountStorageInfo({ hostName }: MountStorageInfoProps) {
   if (loading) {
     return (
       <div className="mount-storage-info">
-        <h3 className="text-lg font-bold mb-4">📂 ファイルシステム</h3>
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <FolderIcon className="w-5 h-5" />
+          ファイルシステム
+        </h3>
         <p className="text-gray-500 text-sm">読み込み中...</p>
       </div>
     );
@@ -63,7 +67,10 @@ export function MountStorageInfo({ hostName }: MountStorageInfoProps) {
 
   return (
     <div className="mount-storage-info">
-      <h3 className="text-lg font-bold mb-4">📂 ファイルシステム</h3>
+      <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+        <FolderIcon className="w-5 h-5" />
+        ファイルシステム
+      </h3>
       <div className="space-y-3">
         {mounts.map((mount) => {
           const usedPercent = mount.size_bytes && mount.used_bytes
