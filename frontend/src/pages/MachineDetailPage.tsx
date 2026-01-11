@@ -227,12 +227,54 @@ export function MachineDetailPage() {
       <section className="py-8">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            {/* 左カラム - ハードウェア仕様 + VM */}
-            <div className="lg:col-span-2 order-2 lg:order-1">
-              {/* Machine Specs */}
-              <div className="bg-white rounded-lg shadow p-6 mb-6">
-                <h3 className="text-lg font-bold mb-4">ハードウェア仕様</h3>
+            {/* 左カラム (2/3): 仮想マシン、ZFSプール、ファイルシステム */}
+            <div className="lg:col-span-2 order-2 lg:order-1 space-y-6">
+              {/* 仮想マシン */}
+              {machine.vm && machine.vm.length > 0 && (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <VMTable
+                    vms={machine.vm}
+                    esxiHost={machine.name}
+                    hostCpuCount={uptimeInfo?.cpu_threads ?? undefined}
+                    hostRamGb={ramGb}
+                    hostStorageGb={totalStorageGb}
+                  />
+                </div>
+              )}
 
+              {/* ZFSプール */}
+              {machine.storage === 'zfs' && (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <ZfsStorageInfo hostName={machine.name} />
+                </div>
+              )}
+
+              {/* ファイルシステム */}
+              {machine.mount && machine.mount.length > 0 && (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <MountStorageInfo hostName={machine.name} />
+                </div>
+              )}
+            </div>
+
+            {/* 右カラム (1/3): サーバー画像・モデル、ハードウェア仕様、ストレージ、クイックアクション */}
+            <div className="lg:col-span-1 order-1 lg:order-2 space-y-6">
+              {/* サーバー画像・モデル */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="flex justify-center">
+                  <ServerImage modelName={machine.mode} size="large" />
+                </div>
+                <div className="mt-3 flex justify-center">
+                  <div className="inline-flex rounded overflow-hidden">
+                    <span className="px-2 py-1 bg-gray-800 text-white text-sm">モデル</span>
+                    <span className="px-2 py-1 bg-gray-100 text-gray-800 text-sm">{String(machine.mode ?? '')}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ハードウェア仕様 */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-bold mb-4">ハードウェア仕様</h3>
                 <div className="specs-section">
                   <div className="spec-item mb-4">
                     <div className="flex items-center mb-2">
@@ -271,7 +313,7 @@ export function MachineDetailPage() {
                   </div>
 
                   {machine.storage !== 'zfs' && (
-                    <div className="spec-item mb-4">
+                    <div className="spec-item">
                       <PerformanceBar
                         label="総ストレージ容量"
                         value={Math.round(totalStorageGb / 1024 * 10) / 10}
@@ -285,52 +327,15 @@ export function MachineDetailPage() {
                 </div>
               </div>
 
-              {/* Virtual Machines */}
-              {machine.vm && machine.vm.length > 0 && (
+              {/* ストレージ */}
+              {machine.storage !== 'zfs' && (
                 <div className="bg-white rounded-lg shadow p-6">
-                  <VMTable
-                    vms={machine.vm}
-                    esxiHost={machine.name}
-                    hostCpuCount={uptimeInfo?.cpu_threads ?? undefined}
-                    hostRamGb={ramGb}
-                    hostStorageGb={totalStorageGb}
-                  />
+                  <StorageInfo storage={machine.storage} />
                 </div>
               )}
-            </div>
 
-            {/* 右カラム - モバイルでは contents で展開、PCでは通常のブロック */}
-            <div className="contents lg:block">
-              {/* Server Image - モバイルでorder-1(最初)、PCでは右カラム内で上 */}
-              <div className="order-1 lg:order-none bg-white rounded-lg shadow p-6 mb-6">
-                <div className="flex justify-center">
-                  <ServerImage modelName={machine.mode} size="large" />
-                </div>
-                <div className="mt-3 flex justify-center">
-                  <div className="inline-flex rounded overflow-hidden">
-                    <span className="px-2 py-1 bg-gray-800 text-white text-sm">モデル</span>
-                    <span className="px-2 py-1 bg-gray-100 text-gray-800 text-sm">{String(machine.mode ?? '')}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Storage Details - モバイルでorder-3(最後の方)、PCでは右カラム内で中央 */}
-              <div className="order-3 lg:order-none bg-white rounded-lg shadow p-6 mb-6">
-                <h3 className="text-lg font-bold mb-4">ストレージ詳細</h3>
-                {machine.storage === 'zfs' ? (
-                  <ZfsStorageInfo hostName={machine.name} />
-                ) : (
-                  <StorageInfo storage={machine.storage} />
-                )}
-                {machine.mount && machine.mount.length > 0 && (
-                  <div className="mt-4">
-                    <MountStorageInfo hostName={machine.name} />
-                  </div>
-                )}
-              </div>
-
-              {/* Quick Actions - モバイルでorder-4(最後)、PCでは右カラム内で下 */}
-              <div className="order-4 lg:order-none bg-white rounded-lg shadow p-6">
+              {/* クイックアクション */}
+              <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-bold mb-4">クイックアクション</h3>
                 <div className="space-y-2">
                   <button

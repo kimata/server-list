@@ -143,57 +143,57 @@ export function ServerCard({
 
         <hr className="my-4 border-gray-200" />
 
-        {machine.storage === 'zfs' ? (
-          <ZfsStorageInfo hostName={machine.name} />
-        ) : (
-          <StorageInfo storage={machine.storage} />
+        {/* Virtual Machines */}
+        {machine.vm && machine.vm.length > 0 && (
+          <div className="vm-summary mb-4">
+            <h4 className="text-sm font-bold mb-2">
+              ☁️ 仮想マシン ({machine.vm.length}台)
+            </h4>
+            <div className="flex flex-wrap gap-1">
+              {[...machine.vm]
+                .sort((a, b) => {
+                  // Sort by power state first (poweredOn first), then alphabetically
+                  const aOn = a.power_state?.includes('poweredOn') ? 0 : 1;
+                  const bOn = b.power_state?.includes('poweredOn') ? 0 : 1;
+                  if (aOn !== bOn) return aOn - bOn;
+                  return a.name.localeCompare(b.name);
+                })
+                .slice(0, 5)
+                .map((vm, index) => {
+                  const isPoweredOn = vm.power_state?.includes('poweredOn');
+                  const tagClass = isPoweredOn
+                    ? 'inline-block px-2 py-1 bg-green-100 text-green-700 rounded text-xs'
+                    : 'inline-block px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs';
+                  return (
+                    <span key={index} className={tagClass}>
+                      {String(vm.name ?? '')}
+                    </span>
+                  );
+                })}
+              {machine.vm.length > 5 && (
+                <span className="inline-block px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
+                  +{machine.vm.length - 5} more
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              クリックして詳細を表示
+            </p>
+          </div>
         )}
 
+        {/* Filesystem */}
         {machine.mount && machine.mount.length > 0 && (
-          <div className="mt-4">
+          <div className="mb-4">
             <MountStorageInfo hostName={machine.name} />
           </div>
         )}
 
-        {machine.vm && machine.vm.length > 0 && (
-          <>
-            <hr className="my-4 border-gray-200" />
-            <div className="vm-summary">
-              <h4 className="text-sm font-bold mb-2">
-                仮想マシン ({machine.vm.length}台)
-              </h4>
-              <div className="flex flex-wrap gap-1">
-                {[...machine.vm]
-                  .sort((a, b) => {
-                    // Sort by power state first (poweredOn first), then alphabetically
-                    const aOn = a.power_state?.includes('poweredOn') ? 0 : 1;
-                    const bOn = b.power_state?.includes('poweredOn') ? 0 : 1;
-                    if (aOn !== bOn) return aOn - bOn;
-                    return a.name.localeCompare(b.name);
-                  })
-                  .slice(0, 5)
-                  .map((vm, index) => {
-                    const isPoweredOn = vm.power_state?.includes('poweredOn');
-                    const tagClass = isPoweredOn
-                      ? 'inline-block px-2 py-1 bg-green-100 text-green-700 rounded text-xs'
-                      : 'inline-block px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs';
-                    return (
-                      <span key={index} className={tagClass}>
-                        {String(vm.name ?? '')}
-                      </span>
-                    );
-                  })}
-                {machine.vm.length > 5 && (
-                  <span className="inline-block px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">
-                    +{machine.vm.length - 5} more
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                クリックして詳細を表示
-              </p>
-            </div>
-          </>
+        {/* ZFS Pool or Storage */}
+        {machine.storage === 'zfs' ? (
+          <ZfsStorageInfo hostName={machine.name} />
+        ) : (
+          <StorageInfo storage={machine.storage} />
         )}
       </div>
     </div>

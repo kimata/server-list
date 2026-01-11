@@ -43,13 +43,16 @@ class MountConfig:
 
     label: str
     path: str
-    type: str = "filesystem"  # "btrfs" or "filesystem"
+    type: str = "filesystem"  # "btrfs", "filesystem", or "windows"
 
     @classmethod
     def from_dict(cls, data: dict) -> "MountConfig":
+        label = data["label"]
+        # If path is not specified, use label as display path
+        path = data.get("path", label)
         return cls(
-            label=data["label"],
-            path=data["path"],
+            label=label,
+            path=path,
             type=data.get("type", "filesystem"),
         )
 

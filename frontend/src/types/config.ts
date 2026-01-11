@@ -11,8 +11,8 @@ export interface VirtualMachine {
 
 export interface MountConfig {
   label: string;
-  path: string;
-  type?: 'btrfs' | 'filesystem';
+  path?: string;
+  type?: 'btrfs' | 'filesystem' | 'windows';
 }
 
 export interface Machine {

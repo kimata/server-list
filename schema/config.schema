@@ -102,21 +102,21 @@
                             "properties": {
                                 "label": {
                                     "type": "string",
-                                    "description": "Prometheus label to match (btrfs label or instance)"
+                                    "description": "Prometheus label to match (btrfs label, instance, or Windows volume)"
                                 },
                                 "path": {
                                     "type": "string",
-                                    "description": "Mount point path (for display)"
+                                    "description": "Mount point path (for display). If omitted, label is used"
                                 },
                                 "type": {
                                     "type": "string",
-                                    "enum": ["btrfs", "filesystem"],
-                                    "description": "Storage type: btrfs uses node_btrfs_* metrics, filesystem uses node_filesystem_* metrics"
+                                    "enum": ["btrfs", "filesystem", "windows"],
+                                    "description": "Storage type: btrfs, filesystem (Linux), or windows"
                                 }
                             },
-                            "required": ["label", "path"]
+                            "required": ["label"]
                         },
-                        "description": "Mount points to monitor via Prometheus node_exporter"
+                        "description": "Mount points to monitor via Prometheus (node_exporter or windows_exporter)"
                     }
                 },
                 "required": ["name"]

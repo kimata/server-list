@@ -422,6 +422,69 @@ def fetch_prometheus_uptime(prometheus_url: str, instance: str) -> dict | None:
         return None
 
 
+def fetch_prometheus_windows_uptime(prometheus_url: str, instance: str) -> dict | None:
+    """Fetch uptime data from Prometheus via windows_system_system_up_time metric.
+
+    Args:
+        prometheus_url: Prometheus server URL (e.g., http://192.168.0.20:9090)
+        instance: Prometheus instance label
+
+    Returns:
+        Uptime data dictionary or None if failed
+    """
+    query = f'windows_system_system_up_time{{instance=~"{instance}.*"}}'
+    url = f"{prometheus_url}/api/v1/query"
+
+    try:
+        response = requests.get(
+            url,
+            params={"query": query},
+            timeout=30
+        )
+
+        if response.status_code != 200:
+            logging.warning("Prometheus API returned status %d", response.status_code)
+            return None
+
+        data = response.json()
+
+        if data.get("status") != "success":
+            logging.warning("Prometheus query failed: %s", data.get("error"))
+            return None
+
+        results = data.get("data", {}).get("result", [])
+        if not results:
+            logging.warning("No Prometheus Windows uptime data for instance %s", instance)
+            return None
+
+        # Get first result
+        result = results[0]
+        value = result.get("value", [])
+        if len(value) < 2:
+            return None
+
+        # value[0] is timestamp, value[1] is boot_time in seconds since epoch
+        current_time = float(value[0])
+        boot_time = float(value[1])
+        uptime_seconds = current_time - boot_time
+
+        return {
+            "boot_time": datetime.fromtimestamp(boot_time).isoformat(),
+            "uptime_seconds": uptime_seconds,
+            "status": "running",
+        }
+
+    except requests.exceptions.Timeout:
+        logging.warning("Timeout connecting to Prometheus at %s", prometheus_url)
+        return None
+    except requests.exceptions.ConnectionError as e:
+        logging.warning("Connection error to Prometheus at %s: %s", prometheus_url, e)
+        return None
+    except Exception as e:
+        logging.warning("Error fetching Windows uptime from Prometheus: %s", e)
+        return None
+
+
 def get_prometheus_instance(host: str, instance_map: dict) -> str:
     """Get Prometheus instance name for a host.
 
@@ -446,9 +509,10 @@ def get_prometheus_instance(host: str, instance_map: dict) -> str:
 
 
 def collect_prometheus_uptime_data() -> bool:
-    """Collect uptime data from Prometheus for configured Linux hosts.
+    """Collect uptime data from Prometheus for configured hosts.
 
     Automatically collects uptime for machines without ESXi configuration.
+    Uses node_boot_time_seconds for Linux and windows_system_system_up_time for Windows.
     Instance name is derived from FQDN (first part) unless explicitly
     configured in prometheus.instance_map.
 
@@ -467,20 +531,24 @@ def collect_prometheus_uptime_data() -> bool:
 
     instance_map = prometheus_config.get("instance_map", {})
 
-    # Find machines without ESXi (Linux servers that need Prometheus uptime)
+    # Find machines without ESXi (servers that need Prometheus uptime)
     machines = config.get("machine", [])
-    target_hosts = [m["name"] for m in machines if not m.get("esxi")]
+    target_machines = [(m["name"], m.get("os", "")) for m in machines if not m.get("esxi")]
 
-    if not target_hosts:
+    if not target_machines:
         return False
 
     updated = False
 
-    for host in target_hosts:
+    for host, os_type in target_machines:
         instance = get_prometheus_instance(host, instance_map)
-        logging.info("Collecting uptime from Prometheus for %s (instance: %s)...", host, instance)
+        logging.info("Collecting uptime from Prometheus for %s (instance: %s, os: %s)...", host, instance, os_type)
 
-        uptime_data = fetch_prometheus_uptime(prometheus_url, instance)
+        # Use appropriate fetch function based on OS
+        if os_type.lower() == "windows":
+            uptime_data = fetch_prometheus_windows_uptime(prometheus_url, instance)
+        else:
+            uptime_data = fetch_prometheus_uptime(prometheus_url, instance)
 
         if uptime_data:
             host_info = {
@@ -742,16 +810,74 @@ def fetch_btrfs_metrics(prometheus_url: str, uuid: str) -> dict | None:
     return None
 
 
-def fetch_prometheus_mount_info(
-    prometheus_url: str, mount_configs: list[dict]
-) -> list[dict] | None:
-    """Fetch mount point data from Prometheus node_exporter.
+def fetch_windows_disk_metrics(prometheus_url: str, volume: str, instance: str) -> dict | None:
+    """Fetch Windows logical disk metrics from Prometheus.
 
-    Supports both filesystem (node_filesystem_*) and btrfs (node_btrfs_*) metrics.
+    Uses windows_exporter metrics:
+    - windows_logical_disk_size_bytes{volume="C:"}
+    - windows_logical_disk_free_bytes{volume="C:"}
+
+    Args:
+        prometheus_url: Prometheus server URL
+        volume: Windows volume label (e.g., "C:")
+        instance: Prometheus instance name (derived from FQDN)
+
+    Returns:
+        Dict with size_bytes, avail_bytes, used_bytes or None if failed
+    """
+    result: dict = {}
+    url = f"{prometheus_url}/api/v1/query"
+
+    # Get total size
+    try:
+        query = f'windows_logical_disk_size_bytes{{volume="{volume}",instance=~"{instance}.*"}}'
+        response = requests.get(url, params={"query": query}, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "success":
+                results = data.get("data", {}).get("result", [])
+                if results:
+                    value = results[0].get("value", [None, None])[1]
+                    if value is not None:
+                        result["size_bytes"] = float(value)
+    except Exception as e:
+        logging.warning("Error fetching Windows disk size for %s: %s", volume, e)
+
+    # Get free bytes
+    try:
+        query = f'windows_logical_disk_free_bytes{{volume="{volume}",instance=~"{instance}.*"}}'
+        response = requests.get(url, params={"query": query}, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "success":
+                results = data.get("data", {}).get("result", [])
+                if results:
+                    value = results[0].get("value", [None, None])[1]
+                    if value is not None:
+                        result["avail_bytes"] = float(value)
+    except Exception as e:
+        logging.warning("Error fetching Windows disk free space for %s: %s", volume, e)
+
+    if "size_bytes" in result and "avail_bytes" in result:
+        result["used_bytes"] = result["size_bytes"] - result["avail_bytes"]
+        return result
+
+    return None
+
+
+def fetch_prometheus_mount_info(
+    prometheus_url: str, mount_configs: list[dict], host: str, instance_map: dict
+) -> list[dict] | None:
+    """Fetch mount point data from Prometheus.
+
+    Supports filesystem (node_filesystem_*), btrfs (node_btrfs_*),
+    and windows (windows_logical_disk_*) metrics.
 
     Args:
         prometheus_url: Prometheus server URL
         mount_configs: List of mount configs with 'label', 'path', and optional 'type'
+        host: Host name (FQDN) for deriving Prometheus instance
+        instance_map: Optional mapping of host -> instance
 
     Returns:
         List of mount data dictionaries or None if failed
@@ -760,10 +886,11 @@ def fetch_prometheus_mount_info(
 
     for mount_config in mount_configs:
         label = mount_config.get("label", "")
-        path = mount_config.get("path", "")
+        # If path is not specified, use label as display path
+        path = mount_config.get("path", label)
         mount_type = mount_config.get("type", "filesystem")
 
-        if not label or not path:
+        if not label:
             continue
 
         result_data: dict = {"mountpoint": path, "label": label}
@@ -776,6 +903,13 @@ def fetch_prometheus_mount_info(
                 if btrfs_data:
                     result_data.update(btrfs_data)
                     mount_data.append(result_data)
+        elif mount_type == "windows":
+            # Windows: use windows_logical_disk_* metrics
+            instance = get_prometheus_instance(host, instance_map)
+            windows_data = fetch_windows_disk_metrics(prometheus_url, label, instance)
+            if windows_data:
+                result_data.update(windows_data)
+                mount_data.append(result_data)
         else:
             # Filesystem: use node_filesystem_* metrics
             metrics = {
@@ -873,7 +1007,10 @@ def collect_prometheus_mount_data() -> bool:
     """Collect mount point data from Prometheus for configured hosts.
 
     Automatically collects mount data for machines with mount configuration.
-    Each mount config specifies 'label' (Prometheus instance) and 'path' (mountpoint).
+    Each mount config specifies 'label' (Prometheus label to match) and
+    optional 'path' (display path, defaults to label).
+    The 'type' field determines the metrics source: filesystem, btrfs, or windows.
+    If 'type' is not specified and machine os is 'Windows', defaults to 'windows'.
 
     Returns:
         True if any data was collected, False otherwise
@@ -888,19 +1025,32 @@ def collect_prometheus_mount_data() -> bool:
     if not prometheus_url:
         return False
 
+    instance_map = prometheus_config.get("instance_map", {})
+
     # Find machines with mount configuration
     machines = config.get("machine", [])
-    target_machines = [(m["name"], m["mount"]) for m in machines if m.get("mount")]
+    target_machines = [
+        (m["name"], m["mount"], m.get("os", ""))
+        for m in machines if m.get("mount")
+    ]
 
     if not target_machines:
         return False
 
     updated = False
 
-    for host, mount_configs in target_machines:
+    for host, mount_configs, os_type in target_machines:
         logging.info("Collecting mount data from Prometheus for %s...", host)
 
-        mounts = fetch_prometheus_mount_info(prometheus_url, mount_configs)
+        # Auto-detect type based on OS if not specified
+        processed_configs = []
+        for mc in mount_configs:
+            config_copy = dict(mc)
+            if "type" not in config_copy and os_type.lower() == "windows":
+                config_copy["type"] = "windows"
+            processed_configs.append(config_copy)
+
+        mounts = fetch_prometheus_mount_info(prometheus_url, processed_configs, host, instance_map)
 
         if mounts:
             save_mount_info(host, mounts)
