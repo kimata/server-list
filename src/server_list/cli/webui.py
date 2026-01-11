@@ -16,6 +16,7 @@ from __future__ import annotations
 import atexit
 import logging
 import os
+import signal
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import unquote
@@ -46,6 +47,22 @@ if TYPE_CHECKING:
     from server_list.config import Config
 
 URL_PREFIX = "/server-list"
+
+
+def term() -> None:
+    """Terminate the application gracefully."""
+    logging.info("Terminating application...")
+    stop_cache_worker()
+    stop_collector()
+    logging.info("Application terminated.")
+
+
+def sig_handler(num: int, frame) -> None:  # noqa: ARG001
+    """Handle signals for graceful shutdown."""
+    logging.warning("Received signal %d", num)
+
+    if num in (signal.SIGTERM, signal.SIGINT):
+        term()
 
 
 def create_app(
@@ -166,7 +183,13 @@ def main() -> None:
 
     app.config["CONFIG"] = config
 
-    app.run(host="0.0.0.0", port=port, debug=debug_mode)  # noqa: S104
+    signal.signal(signal.SIGTERM, sig_handler)
+
+    try:
+        app.run(host="0.0.0.0", port=port, debug=debug_mode)  # noqa: S104
+    except KeyboardInterrupt:
+        logging.info("Received KeyboardInterrupt, shutting down...")
+        sig_handler(signal.SIGINT, None)
 
 
 if __name__ == "__main__":
