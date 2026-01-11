@@ -8,19 +8,15 @@ export function StorageInfo({ storage }: StorageInfoProps) {
   if (!storage || !Array.isArray(storage) || storage.length === 0) {
     return (
       <div className="storage-info">
-        <h4 className="text-sm font-bold mb-2">
-          💾 ストレージ
-        </h4>
-        <p className="text-gray-500 text-xs">ストレージ情報がありません</p>
+        <h3 className="text-lg font-bold mb-4">💾 ストレージ</h3>
+        <p className="text-gray-500 text-sm">ストレージ情報がありません</p>
       </div>
     );
   }
 
   return (
     <div className="storage-info">
-      <h4 className="text-sm font-bold mb-2">
-        💾 ストレージ
-      </h4>
+      <h3 className="text-lg font-bold mb-4">💾 ストレージ</h3>
       <div>
         {storage.map((disk, index) => (
           <div key={index} className="storage-item rounded">
