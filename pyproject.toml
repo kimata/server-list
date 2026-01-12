@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 
 dependencies = [
-    "my-lib @ git+https://github.com/kimata/my-py-lib@524bede63abb4fe859e69f14630937ad83aa8a37",
+    "my-lib @ git+https://github.com/kimata/my-py-lib@f7251a5d834cf8201f59e367f94871800f000c01",
     "flask>=3.0.0",
     "flask-cors>=4.0.0",
     "requests>=2.31.0",
@@ -42,6 +42,7 @@ dev = [
     "types-pytz>=2025.2.0",
     "types-paramiko>=4.0.0",
     "types-pyyaml>=6.0.12",
+    "types-requests>=2.32.0",
 ]
 
 [tool.uv]
