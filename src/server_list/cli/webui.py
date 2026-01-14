@@ -165,6 +165,7 @@ def main() -> None:
 
     from server_list.config import Config
 
+    assert __doc__ is not None
     args = docopt.docopt(__doc__)
 
     config_file = args["-c"]
