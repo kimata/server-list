@@ -236,7 +236,7 @@ deploy:
           artifacts: false
         - job: test-webui
           artifacts: false
-p
+
     image:
         name: gitlab.green-rabbit.net:5050/kimata/local-kubectl:250715_c88f3965
 
