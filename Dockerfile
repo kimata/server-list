@@ -24,8 +24,6 @@ USER ubuntu
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PATH="/home/ubuntu/.local/bin:$PATH"
 ENV UV_LINK_MODE=copy
-# CephFS/NFS環境でのSQLiteロック問題を回避
-ENV SQLITE_JOURNAL_MODE=DELETE
 
 # ubuntu ユーザーで uv をインストール
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
