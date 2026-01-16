@@ -88,7 +88,7 @@ export function ServerCard({
               </div>
               <div className="flex items-center gap-2">
                 {powerInfo?.power_watts != null && (
-                  <span className="inline-flex items-center px-2 py-0.5 bg-red-100 text-red-700 rounded text-xs">
+                  <span className="inline-flex items-center px-2 py-1 bg-red-100 text-red-700 rounded text-sm">
                     <span className="mr-1">⚡</span>
                     <span>{powerInfo.power_watts} W</span>
                   </span>
