@@ -155,6 +155,9 @@ class TestBackgroundWorkers:
         with (
             unittest.mock.patch("server_list.cli.webui.start_cache_worker") as mock_cache,
             unittest.mock.patch("server_list.cli.webui.start_collector") as mock_collector,
+            unittest.mock.patch("server_list.cli.webui.cache_manager.init_db"),
+            unittest.mock.patch("server_list.cli.webui.cpu_benchmark.init_db"),
+            unittest.mock.patch("server_list.cli.webui.data_collector.init_db"),
             unittest.mock.patch.dict(os.environ, {"WERKZEUG_RUN_MAIN": "true"}),
             unittest.mock.patch("atexit.register"),
         ):
@@ -185,6 +188,9 @@ class TestBackgroundWorkers:
         with (
             unittest.mock.patch("server_list.cli.webui.start_cache_worker") as mock_cache,
             unittest.mock.patch("server_list.cli.webui.start_collector") as mock_collector,
+            unittest.mock.patch("server_list.cli.webui.cache_manager.init_db"),
+            unittest.mock.patch("server_list.cli.webui.cpu_benchmark.init_db"),
+            unittest.mock.patch("server_list.cli.webui.data_collector.init_db"),
             unittest.mock.patch.object(os.environ, "get", side_effect=mock_environ_get),
             unittest.mock.patch("atexit.register"),
         ):

@@ -18,6 +18,7 @@ from pyVim.connect import Disconnect, SmartConnect
 from pyVmomi import vim
 
 import my_lib.config
+import my_lib.safe_access
 import my_lib.webapp.event
 
 from server_list.spec.db import (
@@ -164,16 +165,9 @@ def _extract_cpu_info(host_system) -> tuple[int | None, int | None]:
     Returns:
         (cpu_threads, cpu_cores) のタプル
     """
-    cpu_threads = None
-    cpu_cores = None
-
-    if hasattr(host_system, "hardware") and host_system.hardware:
-        hw = host_system.hardware
-        if hasattr(hw, "cpuInfo") and hw.cpuInfo:
-            cpu_threads = hw.cpuInfo.numCpuThreads
-            cpu_cores = hw.cpuInfo.numCpuCores
-
-    return cpu_threads, cpu_cores
+    safe_host = my_lib.safe_access.safe(host_system)
+    cpu_info = safe_host.hardware.cpuInfo
+    return (cpu_info.numCpuThreads.value(), cpu_info.numCpuCores.value())
 
 
 def _extract_memory_total(host_system) -> float | None:
@@ -185,11 +179,9 @@ def _extract_memory_total(host_system) -> float | None:
     Returns:
         メモリサイズ (bytes) または None
     """
-    if hasattr(host_system, "hardware") and host_system.hardware:
-        hw = host_system.hardware
-        if hasattr(hw, "memorySize") and hw.memorySize:
-            return float(hw.memorySize)
-    return None
+    safe_host = my_lib.safe_access.safe(host_system)
+    memory_size = safe_host.hardware.memorySize.value()
+    return float(memory_size) if memory_size else None
 
 
 def _extract_usage_from_quickstats(
@@ -208,21 +200,18 @@ def _extract_usage_from_quickstats(
     memory_usage_percent = None
     memory_used_bytes = None
 
-    if not (hasattr(host_system, "summary") and host_system.summary):
+    safe_host = my_lib.safe_access.safe(host_system)
+    stats = safe_host.summary.quickStats.value()
+    if not stats:
         return cpu_usage_percent, memory_usage_percent, memory_used_bytes
-
-    summary = host_system.summary
-    if not (hasattr(summary, "quickStats") and summary.quickStats):
-        return cpu_usage_percent, memory_usage_percent, memory_used_bytes
-
-    stats = summary.quickStats
 
     # CPU usage in MHz
-    if stats.overallCpuUsage is not None and host_system.hardware:
-        hw = host_system.hardware
-        if hw.cpuInfo and hw.cpuInfo.hz and hw.cpuInfo.numCpuCores:
-            total_cpu_mhz = (hw.cpuInfo.hz / 1_000_000) * hw.cpuInfo.numCpuCores
-            cpu_usage_percent = (stats.overallCpuUsage / total_cpu_mhz) * 100
+    cpu_info = safe_host.hardware.cpuInfo
+    cpu_hz = cpu_info.hz.value()
+    num_cores = cpu_info.numCpuCores.value()
+    if stats.overallCpuUsage is not None and cpu_hz and num_cores:
+        total_cpu_mhz = (cpu_hz / 1_000_000) * num_cores
+        cpu_usage_percent = (stats.overallCpuUsage / total_cpu_mhz) * 100
 
     # Memory usage in MB
     if stats.overallMemoryUsage is not None and memory_total_bytes:
@@ -241,11 +230,8 @@ def _extract_os_version(host_system) -> str | None:
     Returns:
         OS バージョン文字列 (例: "VMware ESXi 8.0.0 build-xxx")
     """
-    if hasattr(host_system, "config") and host_system.config:
-        cfg = host_system.config
-        if hasattr(cfg, "product") and cfg.product:
-            return cfg.product.fullName
-    return None
+    safe_host = my_lib.safe_access.safe(host_system)
+    return safe_host.config.product.fullName.value()
 
 
 def fetch_host_info(si, host: str) -> HostInfo | None:
@@ -713,16 +699,13 @@ def collect_prometheus_uptime_data() -> bool:
         True if any data was collected, False otherwise
     """
     config = load_config()
-    prometheus_config = config.get("prometheus", {})
+    cfg = my_lib.config.accessor(config)
 
-    if not prometheus_config:
-        return False
-
-    prometheus_url = prometheus_config.get("url")
+    prometheus_url = cfg.get("prometheus", "url")
     if not prometheus_url:
         return False
 
-    instance_map = prometheus_config.get("instance_map", {})
+    instance_map = cfg.get_dict("prometheus", "instance_map")
 
     # Find machines without ESXi (servers that need Prometheus uptime)
     machines = config.get("machine", [])
@@ -884,16 +867,13 @@ def collect_prometheus_zfs_data() -> bool:
         True if any data was collected, False otherwise
     """
     config = load_config()
-    prometheus_config = config.get("prometheus", {})
+    cfg = my_lib.config.accessor(config)
 
-    if not prometheus_config:
-        return False
-
-    prometheus_url = prometheus_config.get("url")
+    prometheus_url = cfg.get("prometheus", "url")
     if not prometheus_url:
         return False
 
-    instance_map = prometheus_config.get("instance_map", {})
+    instance_map = cfg.get_dict("prometheus", "instance_map")
 
     # Find machines with filesystem: ['zfs']
     machines = config.get("machine", [])
@@ -1168,16 +1148,13 @@ def collect_prometheus_mount_data() -> bool:
         True if any data was collected, False otherwise
     """
     config = load_config()
-    prometheus_config = config.get("prometheus", {})
+    cfg = my_lib.config.accessor(config)
 
-    if not prometheus_config:
-        return False
-
-    prometheus_url = prometheus_config.get("url")
+    prometheus_url = cfg.get("prometheus", "url")
     if not prometheus_url:
         return False
 
-    instance_map = prometheus_config.get("instance_map", {})
+    instance_map = cfg.get_dict("prometheus", "instance_map")
 
     # Find machines with mount configuration
     machines = config.get("machine", [])

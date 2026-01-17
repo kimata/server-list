@@ -25,6 +25,10 @@ def env_mock():
         {
             "TEST": "true",
             "NO_COLORED_LOGS": "true",
+            # SQLite 環境変数を明示的に設定（並列テスト時の競合防止）
+            "SQLITE_MMAP_SIZE": "0",
+            "SQLITE_JOURNAL_MODE": "WAL",
+            "SQLITE_LOCKING_MODE": "EXCLUSIVE",
         },
     ) as fixture:
         yield fixture
@@ -97,10 +101,13 @@ def flask_app(sample_config):
 
     webapp_config = my_lib.webapp.config.WebappConfig.parse(sample_config["webapp"])
 
-    # バックグラウンドワーカーを起動しないようにモック
+    # バックグラウンドワーカーとデータベース初期化をモック（並列テスト時の競合防止）
     with (
         unittest.mock.patch("server_list.cli.webui.start_cache_worker"),
         unittest.mock.patch("server_list.cli.webui.start_collector"),
+        unittest.mock.patch("server_list.cli.webui.cache_manager.init_db"),
+        unittest.mock.patch("server_list.cli.webui.cpu_benchmark.init_db"),
+        unittest.mock.patch("server_list.cli.webui.data_collector.init_db"),
         unittest.mock.patch("atexit.register"),
     ):
         app = create_app(webapp_config)
