@@ -118,30 +118,44 @@ def client(flask_app):
 # === VM情報フィクスチャ ===
 @pytest.fixture
 def sample_vm_info():
-    """サンプルVM情報"""
-    return {
-        "vm_name": "test-vm-1",
-        "cpu_count": 4,
-        "ram_mb": 8192,
-        "storage_gb": 100.0,
-        "power_state": "poweredOn",
-        "esxi_host": "test-server-1.example.com",
-        "collected_at": "2024-01-01T00:00:00",
-    }
+    """サンプルVM情報（dataclass）"""
+    from server_list.spec.models import VMInfo
+
+    return VMInfo(
+        vm_name="test-vm-1",
+        cpu_count=4,
+        ram_mb=8192,
+        storage_gb=100.0,
+        power_state="poweredOn",
+        esxi_host="test-server-1.example.com",
+        collected_at="2024-01-01T00:00:00",
+    )
 
 
 @pytest.fixture
 def sample_uptime_info():
-    """サンプル稼働時間情報"""
-    return {
-        "host": "test-server-1.example.com",
-        "boot_time": "2024-01-01T00:00:00",
-        "uptime_seconds": 86400.0,
-        "status": "running",
-        "cpu_threads": 16,
-        "cpu_cores": 8,
-        "collected_at": "2024-01-02T00:00:00",
-    }
+    """サンプル稼働時間情報（dataclass）"""
+    from server_list.spec.models import HostInfo
+
+    return HostInfo(
+        host="test-server-1.example.com",
+        boot_time="2024-01-01T00:00:00",
+        uptime_seconds=86400.0,
+        status="running",
+        cpu_threads=16,
+        cpu_cores=8,
+        collected_at="2024-01-02T00:00:00",
+    )
+
+
+# === データベースパス管理 ===
+@pytest.fixture(autouse=True)
+def reset_db_paths():
+    """各テスト後に db_config のパスをリセット"""
+    from server_list.spec import db_config
+
+    yield
+    db_config.reset_all_paths()
 
 
 # === ロギング設定 ===

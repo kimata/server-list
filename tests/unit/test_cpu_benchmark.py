@@ -5,7 +5,8 @@ cpu_benchmark.py のユニットテスト
 """
 
 import sqlite3
-import unittest.mock
+
+from server_list.spec import db_config
 
 
 class TestInitDb:
@@ -16,9 +17,9 @@ class TestInitDb:
         from server_list.spec import cpu_benchmark
 
         db_path = temp_data_dir / "cpu_spec.db"
+        db_config.set_cpu_spec_db_path(db_path)
 
-        with unittest.mock.patch.object(cpu_benchmark, "DB_PATH", db_path):
-            cpu_benchmark.init_db()
+        cpu_benchmark.init_db()
 
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -112,45 +113,45 @@ class TestSaveAndGetBenchmark:
         from server_list.spec import cpu_benchmark
 
         db_path = temp_data_dir / "cpu_spec.db"
+        db_config.set_cpu_spec_db_path(db_path)
 
-        with unittest.mock.patch.object(cpu_benchmark, "DB_PATH", db_path):
-            cpu_benchmark.init_db()
+        cpu_benchmark.init_db()
 
-            cpu_benchmark.save_benchmark("Intel Core i7-12700K", 30000, 4000)
+        cpu_benchmark.save_benchmark("Intel Core i7-12700K", 30000, 4000)
 
-            result = cpu_benchmark.get_benchmark("Intel Core i7-12700K")
+        result = cpu_benchmark.get_benchmark("Intel Core i7-12700K")
 
         assert result is not None
-        assert result["cpu_name"] == "Intel Core i7-12700K"
-        assert result["multi_thread_score"] == 30000
-        assert result["single_thread_score"] == 4000
+        assert result.cpu_name == "Intel Core i7-12700K"
+        assert result.multi_thread_score == 30000
+        assert result.single_thread_score == 4000
 
     def test_get_benchmark_fuzzy_match(self, temp_data_dir):
         """あいまい検索が正しく動作する"""
         from server_list.spec import cpu_benchmark
 
         db_path = temp_data_dir / "cpu_spec.db"
+        db_config.set_cpu_spec_db_path(db_path)
 
-        with unittest.mock.patch.object(cpu_benchmark, "DB_PATH", db_path):
-            cpu_benchmark.init_db()
+        cpu_benchmark.init_db()
 
-            cpu_benchmark.save_benchmark("Intel Core i7-12700K @ 3.60GHz", 30000, 4000)
+        cpu_benchmark.save_benchmark("Intel Core i7-12700K @ 3.60GHz", 30000, 4000)
 
-            result = cpu_benchmark.get_benchmark("i7-12700K")
+        result = cpu_benchmark.get_benchmark("i7-12700K")
 
         assert result is not None
-        assert "i7-12700K" in result["cpu_name"]
+        assert "i7-12700K" in result.cpu_name
 
     def test_get_benchmark_not_found(self, temp_data_dir):
         """存在しないCPUでは None を返す"""
         from server_list.spec import cpu_benchmark
 
         db_path = temp_data_dir / "cpu_spec.db"
+        db_config.set_cpu_spec_db_path(db_path)
 
-        with unittest.mock.patch.object(cpu_benchmark, "DB_PATH", db_path):
-            cpu_benchmark.init_db()
+        cpu_benchmark.init_db()
 
-            result = cpu_benchmark.get_benchmark("Nonexistent CPU XYZ-9999")
+        result = cpu_benchmark.get_benchmark("Nonexistent CPU XYZ-9999")
 
         assert result is None
 
@@ -163,12 +164,12 @@ class TestClearBenchmark:
         from server_list.spec import cpu_benchmark
 
         db_path = temp_data_dir / "cpu_spec.db"
+        db_config.set_cpu_spec_db_path(db_path)
 
-        with unittest.mock.patch.object(cpu_benchmark, "DB_PATH", db_path):
-            cpu_benchmark.init_db()
+        cpu_benchmark.init_db()
 
-            cpu_benchmark.save_benchmark("Test CPU", 10000, 2000)
-            assert cpu_benchmark.get_benchmark("Test CPU") is not None
+        cpu_benchmark.save_benchmark("Test CPU", 10000, 2000)
+        assert cpu_benchmark.get_benchmark("Test CPU") is not None
 
-            cpu_benchmark.clear_benchmark("Test CPU")
-            assert cpu_benchmark.get_benchmark("Test CPU") is None
+        cpu_benchmark.clear_benchmark("Test CPU")
+        assert cpu_benchmark.get_benchmark("Test CPU") is None

@@ -7,6 +7,8 @@ cache_manager.py のユニットテスト
 import sqlite3
 import unittest.mock
 
+from server_list.spec import db_config
+
 
 class TestInitDb:
     """init_db 関数のテスト"""
@@ -16,12 +18,9 @@ class TestInitDb:
         from server_list.spec import cache_manager
 
         db_path = temp_data_dir / "cache.db"
+        db_config.set_cache_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
-        ):
-            cache_manager.init_db()
+        cache_manager.init_db()
 
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -40,17 +39,14 @@ class TestCacheOperations:
         from server_list.spec import cache_manager
 
         db_path = temp_data_dir / "cache.db"
+        db_config.set_cache_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
-        ):
-            cache_manager.init_db()
+        cache_manager.init_db()
 
-            test_data = {"key1": "value1", "key2": 123}
-            cache_manager.set_cache("test_key", test_data)
+        test_data = {"key1": "value1", "key2": 123}
+        cache_manager.set_cache("test_key", test_data)
 
-            result = cache_manager.get_cache("test_key")
+        result = cache_manager.get_cache("test_key")
 
         assert result == test_data
 
@@ -59,14 +55,11 @@ class TestCacheOperations:
         from server_list.spec import cache_manager
 
         db_path = temp_data_dir / "cache.db"
+        db_config.set_cache_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
-        ):
-            cache_manager.init_db()
+        cache_manager.init_db()
 
-            result = cache_manager.get_cache("nonexistent_key")
+        result = cache_manager.get_cache("nonexistent_key")
 
         assert result is None
 
@@ -75,17 +68,14 @@ class TestCacheOperations:
         from server_list.spec import cache_manager
 
         db_path = temp_data_dir / "cache.db"
+        db_config.set_cache_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
-        ):
-            cache_manager.init_db()
+        cache_manager.init_db()
 
-            cache_manager.set_cache("test_key", {"old": "value"})
-            cache_manager.set_cache("test_key", {"new": "value"})
+        cache_manager.set_cache("test_key", {"old": "value"})
+        cache_manager.set_cache("test_key", {"new": "value"})
 
-            result = cache_manager.get_cache("test_key")
+        result = cache_manager.get_cache("test_key")
 
         assert result == {"new": "value"}
 
@@ -94,17 +84,14 @@ class TestCacheOperations:
         from server_list.spec import cache_manager
 
         db_path = temp_data_dir / "cache.db"
+        db_config.set_cache_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
-        ):
-            cache_manager.init_db()
+        cache_manager.init_db()
 
-            test_list = [{"name": "item1"}, {"name": "item2"}]
-            cache_manager.set_cache("list_key", test_list)
+        test_list = [{"name": "item1"}, {"name": "item2"}]
+        cache_manager.set_cache("list_key", test_list)
 
-            result = cache_manager.get_cache("list_key")
+        result = cache_manager.get_cache("list_key")
 
         assert result == test_list
 
@@ -130,15 +117,12 @@ class TestGetConfig:
         from server_list.spec import cache_manager
 
         db_path = temp_data_dir / "cache.db"
+        db_config.set_cache_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
-        ):
-            cache_manager.init_db()
-            cache_manager.set_cache("config", sample_config)
+        cache_manager.init_db()
+        cache_manager.set_cache("config", sample_config)
 
-            result = cache_manager.get_config()
+        result = cache_manager.get_config()
 
         assert result == sample_config
 
@@ -147,12 +131,9 @@ class TestGetConfig:
         from server_list.spec import cache_manager
 
         db_path = temp_data_dir / "cache.db"
+        db_config.set_cache_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
-            unittest.mock.patch.object(cache_manager, "load_config_from_file", return_value=sample_config),
-        ):
+        with unittest.mock.patch.object(cache_manager, "load_config_from_file", return_value=sample_config):
             cache_manager.init_db()
 
             result = cache_manager.get_config()
@@ -168,10 +149,9 @@ class TestCacheWorker:
         from server_list.spec import cache_manager
 
         db_path = temp_data_dir / "cache.db"
+        db_config.set_cache_db_path(db_path)
 
         with (
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
             unittest.mock.patch.object(cache_manager, "load_config_from_file", return_value=None),
             unittest.mock.patch.object(cache_manager, "UPDATE_INTERVAL_SEC", 0.1),
         ):

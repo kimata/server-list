@@ -6,6 +6,8 @@ cpu_benchmark.py の追加ユニットテスト（100%カバレッジ用）
 
 import unittest.mock
 
+from server_list.spec import db_config
+
 
 class TestCalculateMatchScoreVersions:
     """calculate_match_score 関数のバージョン比較テスト"""
@@ -309,9 +311,9 @@ class TestSearchCpuBenchmarkSingleThread:
             result = search_cpu_benchmark("Intel Core i7-12700K")
 
         assert result is not None
-        assert result["cpu_name"] == "Intel Core i7-12700K"
-        assert result["multi_thread_score"] is None
-        assert result["single_thread_score"] == 4000
+        assert result.cpu_name == "Intel Core i7-12700K"
+        assert result.multi_thread_score is None
+        assert result.single_thread_score == 4000
 
 
 class TestGetBenchmarkFuzzyMatch:
@@ -322,28 +324,28 @@ class TestGetBenchmarkFuzzyMatch:
         from server_list.spec import cpu_benchmark
 
         db_path = temp_data_dir / "cpu_spec.db"
+        db_config.set_cpu_spec_db_path(db_path)
 
-        with unittest.mock.patch.object(cpu_benchmark, "DB_PATH", db_path):
-            cpu_benchmark.init_db()
-            cpu_benchmark.save_benchmark("Intel Core i7-12700K @ 3.6GHz", 30000, 4000)
+        cpu_benchmark.init_db()
+        cpu_benchmark.save_benchmark("Intel Core i7-12700K @ 3.6GHz", 30000, 4000)
 
-            result = cpu_benchmark.get_benchmark("i7-12700K")
+        result = cpu_benchmark.get_benchmark("i7-12700K")
 
         assert result is not None
-        assert "i7-12700K" in result["cpu_name"]
+        assert "i7-12700K" in result.cpu_name
 
     def test_model_number_match(self, temp_data_dir):
         """モデル番号でマッチ"""
         from server_list.spec import cpu_benchmark
 
         db_path = temp_data_dir / "cpu_spec.db"
+        db_config.set_cpu_spec_db_path(db_path)
 
-        with unittest.mock.patch.object(cpu_benchmark, "DB_PATH", db_path):
-            cpu_benchmark.init_db()
-            cpu_benchmark.save_benchmark("Intel Core i7-12700K Full Name", 30000, 4000)
+        cpu_benchmark.init_db()
+        cpu_benchmark.save_benchmark("Intel Core i7-12700K Full Name", 30000, 4000)
 
-            # モデル番号が一致する場合
-            result = cpu_benchmark.get_benchmark("Core i7-12700K")
+        # モデル番号が一致する場合
+        result = cpu_benchmark.get_benchmark("Core i7-12700K")
 
         assert result is not None
 
@@ -354,14 +356,19 @@ class TestMainFunction:
     def test_main_runs(self, temp_data_dir):
         """main 関数が実行される"""
         from server_list.spec import cpu_benchmark
+        from server_list.spec.models import CPUBenchmark
 
         db_path = temp_data_dir / "cpu_spec.db"
+        db_config.set_cpu_spec_db_path(db_path)
 
         with (
-            unittest.mock.patch.object(cpu_benchmark, "DB_PATH", db_path),
             unittest.mock.patch(
                 "server_list.spec.cpu_benchmark.search_cpu_benchmark",
-                return_value={"cpu_name": "Test", "multi_thread_score": 1000, "single_thread_score": 500},
+                return_value=CPUBenchmark(
+                    cpu_name="Test",
+                    multi_thread_score=1000,
+                    single_thread_score=500,
+                ),
             ),
             unittest.mock.patch("time.sleep"),
             unittest.mock.patch("builtins.print"),

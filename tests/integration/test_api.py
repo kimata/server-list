@@ -10,28 +10,30 @@ Flask アプリケーションの API エンドポイントをテストします
 import unittest.mock
 from pathlib import Path
 
+from server_list.spec import db_config
+from server_list.spec.models import HostInfo, VMInfo
+
 
 class TestConfigApiIntegration:
     """設定 API の統合テスト"""
 
     def test_full_config_flow(self, client, temp_data_dir, sample_config):
         """設定取得の完全なフロー"""
-        from server_list.spec import cache_manager
+        import yaml
+
+        from server_list.spec import cache_manager, data_collector
 
         db_path = temp_data_dir / "cache.db"
         config_path = temp_data_dir / "config.yaml"
 
-        import yaml
-
         config_path.write_text(yaml.dump(sample_config))
 
+        db_config.set_cache_db_path(db_path)
+
         with (
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
             unittest.mock.patch.object(cache_manager, "CONFIG_PATH", config_path),
-            unittest.mock.patch(
-                "server_list.spec.webapi.config.get_all_vm_info_for_host",
-                return_value=[],
+            unittest.mock.patch.object(
+                data_collector, "get_all_vm_info_for_host", return_value=[]
             ),
         ):
             cache_manager.init_db()
@@ -41,7 +43,8 @@ class TestConfigApiIntegration:
 
             assert response.status_code == 200
             data = response.get_json()
-            assert "machine" in data
+            assert data["success"] is True
+            assert "machine" in data["data"]
 
 
 class TestCpuApiIntegration:
@@ -52,40 +55,40 @@ class TestCpuApiIntegration:
         from server_list.spec import cpu_benchmark
 
         db_path = temp_data_dir / "cpu_spec.db"
+        db_config.set_cpu_spec_db_path(db_path)
 
-        with unittest.mock.patch.object(cpu_benchmark, "DB_PATH", db_path):
-            cpu_benchmark.init_db()
-            cpu_benchmark.save_benchmark("Intel Core i7-12700K", 30000, 4000)
+        cpu_benchmark.init_db()
+        cpu_benchmark.save_benchmark("Intel Core i7-12700K", 30000, 4000)
 
-            response = client.get("/server-list/api/cpu/benchmark?cpu=Intel Core i7-12700K")
+        response = client.get("/server-list/api/cpu/benchmark?cpu=Intel Core i7-12700K")
 
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data["success"] is True
-            assert data["data"]["cpu_name"] == "Intel Core i7-12700K"
-            assert data["data"]["multi_thread_score"] == 30000
-            assert data["data"]["single_thread_score"] == 4000
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert data["data"]["cpu_name"] == "Intel Core i7-12700K"
+        assert data["data"]["multi_thread_score"] == 30000
+        assert data["data"]["single_thread_score"] == 4000
 
     def test_batch_benchmark_lookup(self, client, temp_data_dir):
         """バッチベンチマーク検索"""
         from server_list.spec import cpu_benchmark
 
         db_path = temp_data_dir / "cpu_spec.db"
+        db_config.set_cpu_spec_db_path(db_path)
 
-        with unittest.mock.patch.object(cpu_benchmark, "DB_PATH", db_path):
-            cpu_benchmark.init_db()
-            cpu_benchmark.save_benchmark("Intel Core i7-12700K", 30000, 4000)
-            cpu_benchmark.save_benchmark("Intel Core i5-12600K", 25000, 3500)
+        cpu_benchmark.init_db()
+        cpu_benchmark.save_benchmark("Intel Core i7-12700K", 30000, 4000)
+        cpu_benchmark.save_benchmark("Intel Core i5-12600K", 25000, 3500)
 
-            response = client.post(
-                "/server-list/api/cpu/benchmark/batch",
-                json={"cpus": ["Intel Core i7-12700K", "Intel Core i5-12600K"]},
-            )
+        response = client.post(
+            "/server-list/api/cpu/benchmark/batch",
+            json={"cpus": ["Intel Core i7-12700K", "Intel Core i5-12600K"]},
+        )
 
-            assert response.status_code == 200
-            data = response.get_json()
-            assert data["success"] is True
-            assert len(data["results"]) == 2
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert len(data["results"]) == 2
 
 
 class TestVmApiIntegration:
@@ -97,23 +100,20 @@ class TestVmApiIntegration:
 
         db_path = temp_data_dir / "test.db"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
 
         vms = [
-            {
-                "esxi_host": "esxi-01",
-                "vm_name": "test-vm",
-                "cpu_count": 4,
-                "ram_mb": 8192,
-                "storage_gb": 100.0,
-                "power_state": "on",
-            }
+            VMInfo(
+                esxi_host="esxi-01",
+                vm_name="test-vm",
+                cpu_count=4,
+                ram_mb=8192,
+                storage_gb=100.0,
+                power_state="on",
+            )
         ]
 
-        with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "DB_PATH", db_path),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
-        ):
+        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
             data_collector.save_vm_data("esxi-01", vms)
 
@@ -131,31 +131,28 @@ class TestVmApiIntegration:
 
         db_path = temp_data_dir / "test.db"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
 
         vms = [
-            {
-                "esxi_host": "esxi-01",
-                "vm_name": "vm-1",
-                "cpu_count": 2,
-                "ram_mb": 4096,
-                "storage_gb": 50.0,
-                "power_state": "on",
-            },
-            {
-                "esxi_host": "esxi-01",
-                "vm_name": "vm-2",
-                "cpu_count": 4,
-                "ram_mb": 8192,
-                "storage_gb": 100.0,
-                "power_state": "on",
-            },
+            VMInfo(
+                esxi_host="esxi-01",
+                vm_name="vm-1",
+                cpu_count=2,
+                ram_mb=4096,
+                storage_gb=50.0,
+                power_state="on",
+            ),
+            VMInfo(
+                esxi_host="esxi-01",
+                vm_name="vm-2",
+                cpu_count=4,
+                ram_mb=8192,
+                storage_gb=100.0,
+                power_state="on",
+            ),
         ]
 
-        with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "DB_PATH", db_path),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
-        ):
+        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
             data_collector.save_vm_data("esxi-01", vms)
 
@@ -177,21 +174,18 @@ class TestUptimeApiIntegration:
 
         db_path = temp_data_dir / "test.db"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
 
-        host_info = {
-            "host": "server-01",
-            "boot_time": "2024-01-01T00:00:00",
-            "uptime_seconds": 86400,
-            "status": "running",
-            "cpu_threads": 16,
-            "cpu_cores": 8,
-        }
+        host_info = HostInfo(
+            host="server-01",
+            boot_time="2024-01-01T00:00:00",
+            uptime_seconds=86400,
+            status="running",
+            cpu_threads=16,
+            cpu_cores=8,
+        )
 
-        with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "DB_PATH", db_path),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
-        ):
+        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
             data_collector.save_host_info(host_info)
 
@@ -209,29 +203,26 @@ class TestUptimeApiIntegration:
 
         db_path = temp_data_dir / "test.db"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
 
-        host_info_1 = {
-            "host": "server-01",
-            "boot_time": "2024-01-01T00:00:00",
-            "uptime_seconds": 86400,
-            "status": "running",
-            "cpu_threads": 16,
-            "cpu_cores": 8,
-        }
-        host_info_2 = {
-            "host": "server-02",
-            "boot_time": "2024-01-02T00:00:00",
-            "uptime_seconds": 43200,
-            "status": "running",
-            "cpu_threads": 8,
-            "cpu_cores": 4,
-        }
+        host_info_1 = HostInfo(
+            host="server-01",
+            boot_time="2024-01-01T00:00:00",
+            uptime_seconds=86400,
+            status="running",
+            cpu_threads=16,
+            cpu_cores=8,
+        )
+        host_info_2 = HostInfo(
+            host="server-02",
+            boot_time="2024-01-02T00:00:00",
+            uptime_seconds=43200,
+            status="running",
+            cpu_threads=8,
+            cpu_cores=4,
+        )
 
-        with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "DB_PATH", db_path),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
-        ):
+        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
             data_collector.save_host_info(host_info_1)
             data_collector.save_host_info(host_info_2)

@@ -8,6 +8,8 @@ import unittest.mock
 from datetime import UTC, datetime
 from pathlib import Path
 
+from server_list.spec import db_config
+
 
 class TestConnectToEsxi:
     """connect_to_esxi 関数のテスト"""
@@ -107,10 +109,10 @@ class TestFetchVmData:
             result = fetch_vm_data(mock_si, "esxi-host")
 
         assert len(result) == 1
-        assert result[0]["vm_name"] == "test-vm"
-        assert result[0]["cpu_count"] == 4
-        assert result[0]["ram_mb"] == 8192
-        assert result[0]["esxi_host"] == "esxi-host"
+        assert result[0].vm_name == "test-vm"
+        assert result[0].cpu_count == 4
+        assert result[0].ram_mb == 8192
+        assert result[0].esxi_host == "esxi-host"
 
     def test_handles_vm_error(self):
         """VM取得エラーを処理する"""
@@ -164,10 +166,10 @@ class TestFetchHostInfo:
         result = fetch_host_info(mock_si, "esxi-host")
 
         assert result is not None
-        assert result["host"] == "esxi-host"
-        assert result["status"] == "running"
-        assert result["cpu_threads"] == 16
-        assert result["cpu_cores"] == 8
+        assert result.host == "esxi-host"
+        assert result.status == "running"
+        assert result.cpu_threads == 16
+        assert result.cpu_cores == 8
 
     def test_handles_exception(self):
         """例外を処理する"""
@@ -187,33 +189,34 @@ class TestCollectAllData:
     def test_collects_data_from_hosts(self, temp_data_dir, sample_secret):
         """全ホストからデータを収集する"""
         from server_list.spec import data_collector
+        from server_list.spec.models import HostInfo, VMInfo
 
         db_path = temp_data_dir / "test.db"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
 
         mock_si = unittest.mock.MagicMock()
         vm_data = [
-            {
-                "esxi_host": "test",
-                "vm_name": "vm1",
-                "cpu_count": 2,
-                "ram_mb": 4096,
-                "storage_gb": 50.0,
-                "power_state": "on",
-            }
+            VMInfo(
+                esxi_host="test",
+                vm_name="vm1",
+                cpu_count=2,
+                ram_mb=4096,
+                storage_gb=50.0,
+                power_state="on",
+            )
         ]
-        host_info = {
-            "host": "test",
-            "boot_time": "2024-01-01",
-            "uptime_seconds": 86400,
-            "status": "running",
-            "cpu_threads": 8,
-            "cpu_cores": 4,
-        }
+        host_info = HostInfo(
+            host="test",
+            boot_time="2024-01-01",
+            uptime_seconds=86400.0,
+            status="running",
+            cpu_threads=8,
+            cpu_cores=4,
+        )
 
         with (
             unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "DB_PATH", db_path),
             unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
             unittest.mock.patch.object(data_collector, "load_secret", return_value=sample_secret),
             unittest.mock.patch.object(data_collector, "connect_to_esxi", return_value=mock_si),
@@ -246,10 +249,10 @@ class TestCollectAllData:
 
         db_path = temp_data_dir / "test.db"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
 
         with (
             unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "DB_PATH", db_path),
             unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
             unittest.mock.patch.object(data_collector, "load_secret", return_value=sample_secret),
             unittest.mock.patch.object(data_collector, "connect_to_esxi", return_value=None),
@@ -267,10 +270,10 @@ class TestUpdateCollectionStatus:
 
         db_path = temp_data_dir / "test.db"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
 
         with (
             unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "DB_PATH", db_path),
             unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
         ):
             data_collector.init_db()

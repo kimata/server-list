@@ -8,6 +8,8 @@ import unittest.mock
 
 import requests
 
+from server_list.spec import db_config
+
 
 class TestSearchChartPage:
     """search_chart_page 関数のテスト"""
@@ -151,9 +153,9 @@ class TestSearchCpuBenchmark:
             result = search_cpu_benchmark("Intel Core i7-12700K")
 
         assert result is not None
-        assert result["cpu_name"] == "Intel Core i7-12700K"
-        assert result["multi_thread_score"] == 30000
-        assert result["single_thread_score"] == 4000
+        assert result.cpu_name == "Intel Core i7-12700K"
+        assert result.multi_thread_score == 30000
+        assert result.single_thread_score == 4000
 
     def test_falls_back_to_cpu_list(self):
         """マルチスレッドチャートで見つからない場合はCPUリストにフォールバック"""
@@ -175,7 +177,7 @@ class TestSearchCpuBenchmark:
             result = search_cpu_benchmark("Intel Core i7-12700K")
 
         assert result is not None
-        assert result["multi_thread_score"] == 30000
+        assert result.multi_thread_score == 30000
 
     def test_returns_none_when_not_found(self):
         """見つからない場合は None を返す"""
@@ -202,26 +204,25 @@ class TestFetchAndSaveBenchmark:
     def test_fetches_and_saves(self, temp_data_dir):
         """ウェブから取得して保存する"""
         from server_list.spec import cpu_benchmark
+        from server_list.spec.models import CPUBenchmark
 
         db_path = temp_data_dir / "cpu_spec.db"
-        benchmark_data = {
-            "cpu_name": "Intel Core i7-12700K",
-            "multi_thread_score": 30000,
-            "single_thread_score": 4000,
-        }
+        db_config.set_cpu_spec_db_path(db_path)
+        benchmark_data = CPUBenchmark(
+            cpu_name="Intel Core i7-12700K",
+            multi_thread_score=30000,
+            single_thread_score=4000,
+        )
 
-        with (
-            unittest.mock.patch.object(cpu_benchmark, "DB_PATH", db_path),
-            unittest.mock.patch(
-                "server_list.spec.cpu_benchmark.search_cpu_benchmark",
-                return_value=benchmark_data,
-            ),
+        with unittest.mock.patch(
+            "server_list.spec.cpu_benchmark.search_cpu_benchmark",
+            return_value=benchmark_data,
         ):
             cpu_benchmark.init_db()
             result = cpu_benchmark.fetch_and_save_benchmark("Intel Core i7-12700K")
 
         assert result is not None
-        assert result["cpu_name"] == "Intel Core i7-12700K"
+        assert result.cpu_name == "Intel Core i7-12700K"
 
     def test_returns_none_when_not_found(self):
         """見つからない場合は None を返す"""

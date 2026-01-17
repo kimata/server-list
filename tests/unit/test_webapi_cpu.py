@@ -6,20 +6,22 @@ webapi/cpu.py のユニットテスト
 
 import unittest.mock
 
+from server_list.spec.models import CPUBenchmark
+
 
 class TestCpuBenchmarkApi:
     """CPU ベンチマーク API のテスト"""
 
     def test_get_benchmark_success(self, client):
         """GET /api/cpu/benchmark が正常に動作する"""
-        benchmark_data = {
-            "cpu_name": "Intel Core i7-12700K",
-            "multi_thread_score": 30000,
-            "single_thread_score": 4000,
-        }
+        benchmark_data = CPUBenchmark(
+            cpu_name="Intel Core i7-12700K",
+            multi_thread_score=30000,
+            single_thread_score=4000,
+        )
 
         with unittest.mock.patch(
-            "server_list.spec.webapi.cpu.get_benchmark",
+            "server_list.spec.cpu_benchmark.get_benchmark",
             return_value=benchmark_data,
         ):
             response = client.get("/server-list/api/cpu/benchmark?cpu=Intel%20Core%20i7-12700K")
@@ -41,7 +43,7 @@ class TestCpuBenchmarkApi:
     def test_get_benchmark_not_found(self, client):
         """ベンチマークが見つからない場合に404を返す"""
         with unittest.mock.patch(
-            "server_list.spec.webapi.cpu.get_benchmark",
+            "server_list.spec.cpu_benchmark.get_benchmark",
             return_value=None,
         ):
             response = client.get("/server-list/api/cpu/benchmark?cpu=Unknown%20CPU")
@@ -52,16 +54,16 @@ class TestCpuBenchmarkApi:
 
     def test_get_benchmark_fetch_from_web(self, client):
         """fetch=true でウェブから取得する"""
-        benchmark_data = {
-            "cpu_name": "Intel Core i7-12700K",
-            "multi_thread_score": 30000,
-            "single_thread_score": 4000,
-        }
+        benchmark_data = CPUBenchmark(
+            cpu_name="Intel Core i7-12700K",
+            multi_thread_score=30000,
+            single_thread_score=4000,
+        )
 
         with (
-            unittest.mock.patch("server_list.spec.webapi.cpu.get_benchmark", return_value=None),
+            unittest.mock.patch("server_list.spec.cpu_benchmark.get_benchmark", return_value=None),
             unittest.mock.patch(
-                "server_list.spec.webapi.cpu.fetch_and_save_benchmark",
+                "server_list.spec.cpu_benchmark.fetch_and_save_benchmark",
                 return_value=benchmark_data,
             ),
         ):
@@ -78,14 +80,14 @@ class TestCpuBenchmarkBatchApi:
 
     def test_batch_success(self, client):
         """POST /api/cpu/benchmark/batch が正常に動作する"""
-        benchmark_data = {
-            "cpu_name": "Intel Core i7-12700K",
-            "multi_thread_score": 30000,
-            "single_thread_score": 4000,
-        }
+        benchmark_data = CPUBenchmark(
+            cpu_name="Intel Core i7-12700K",
+            multi_thread_score=30000,
+            single_thread_score=4000,
+        )
 
         with unittest.mock.patch(
-            "server_list.spec.webapi.cpu.get_benchmark",
+            "server_list.spec.cpu_benchmark.get_benchmark",
             return_value=benchmark_data,
         ):
             response = client.post(
@@ -110,11 +112,11 @@ class TestCpuBenchmarkBatchApi:
         """複数のCPUを処理する"""
         def mock_get_benchmark(cpu_name):
             if cpu_name == "CPU1":
-                return {"cpu_name": "CPU1", "multi_thread_score": 10000, "single_thread_score": 2000}
+                return CPUBenchmark(cpu_name="CPU1", multi_thread_score=10000, single_thread_score=2000)
             return None
 
         with unittest.mock.patch(
-            "server_list.spec.webapi.cpu.get_benchmark",
+            "server_list.spec.cpu_benchmark.get_benchmark",
             side_effect=mock_get_benchmark,
         ):
             response = client.post(

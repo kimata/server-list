@@ -8,6 +8,8 @@ import sqlite3
 import unittest.mock
 from pathlib import Path
 
+from server_list.spec import db_config
+
 
 class TestInitDb:
     """init_db 関数のテスト"""
@@ -18,12 +20,9 @@ class TestInitDb:
 
         db_path = temp_data_dir / "test.db"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "DB_PATH", db_path),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
-        ):
+        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
 
         # テーブルが作成されていることを確認
@@ -70,26 +69,24 @@ class TestSaveAndGetVmData:
     def test_save_and_get_vm_info(self, temp_data_dir):
         """VMデータの保存と取得が正しく動作する"""
         from server_list.spec import data_collector
+        from server_list.spec.models import VMInfo
 
         db_path = temp_data_dir / "test.db"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "DB_PATH", db_path),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
-        ):
+        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
 
             vm_data = [
-                {
-                    "esxi_host": "test-host",
-                    "vm_name": "test-vm",
-                    "cpu_count": 4,
-                    "ram_mb": 8192,
-                    "storage_gb": 100.0,
-                    "power_state": "poweredOn",
-                }
+                VMInfo(
+                    esxi_host="test-host",
+                    vm_name="test-vm",
+                    cpu_count=4,
+                    ram_mb=8192,
+                    storage_gb=100.0,
+                    power_state="poweredOn",
+                )
             ]
 
             data_collector.save_vm_data("test-host", vm_data)
@@ -97,41 +94,39 @@ class TestSaveAndGetVmData:
             result = data_collector.get_vm_info("test-vm", "test-host")
 
         assert result is not None
-        assert result["vm_name"] == "test-vm"
-        assert result["cpu_count"] == 4
-        assert result["ram_mb"] == 8192
+        assert result.vm_name == "test-vm"
+        assert result.cpu_count == 4
+        assert result.ram_mb == 8192
 
     def test_get_all_vm_info_for_host(self, temp_data_dir):
         """ホスト別VM一覧取得が正しく動作する"""
         from server_list.spec import data_collector
+        from server_list.spec.models import VMInfo
 
         db_path = temp_data_dir / "test.db"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "DB_PATH", db_path),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
-        ):
+        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
 
             vm_data = [
-                {
-                    "esxi_host": "test-host",
-                    "vm_name": "vm1",
-                    "cpu_count": 2,
-                    "ram_mb": 4096,
-                    "storage_gb": 50.0,
-                    "power_state": "poweredOn",
-                },
-                {
-                    "esxi_host": "test-host",
-                    "vm_name": "vm2",
-                    "cpu_count": 4,
-                    "ram_mb": 8192,
-                    "storage_gb": 100.0,
-                    "power_state": "poweredOff",
-                },
+                VMInfo(
+                    esxi_host="test-host",
+                    vm_name="vm1",
+                    cpu_count=2,
+                    ram_mb=4096,
+                    storage_gb=50.0,
+                    power_state="poweredOn",
+                ),
+                VMInfo(
+                    esxi_host="test-host",
+                    vm_name="vm2",
+                    cpu_count=4,
+                    ram_mb=8192,
+                    storage_gb=100.0,
+                    power_state="poweredOff",
+                ),
             ]
 
             data_collector.save_vm_data("test-host", vm_data)
@@ -139,7 +134,7 @@ class TestSaveAndGetVmData:
             result = data_collector.get_all_vm_info_for_host("test-host")
 
         assert len(result) == 2
-        assert {vm["vm_name"] for vm in result} == {"vm1", "vm2"}
+        assert {vm.vm_name for vm in result} == {"vm1", "vm2"}
 
 
 class TestSaveAndGetHostInfo:
@@ -148,34 +143,32 @@ class TestSaveAndGetHostInfo:
     def test_save_and_get_host_info(self, temp_data_dir):
         """ホスト情報の保存と取得が正しく動作する"""
         from server_list.spec import data_collector
+        from server_list.spec.models import HostInfo
 
         db_path = temp_data_dir / "test.db"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "DB_PATH", db_path),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
-        ):
+        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
 
-            host_info = {
-                "host": "test-host",
-                "boot_time": "2024-01-01T00:00:00",
-                "uptime_seconds": 86400.0,
-                "status": "running",
-                "cpu_threads": 16,
-                "cpu_cores": 8,
-            }
+            host_info = HostInfo(
+                host="test-host",
+                boot_time="2024-01-01T00:00:00",
+                uptime_seconds=86400.0,
+                status="running",
+                cpu_threads=16,
+                cpu_cores=8,
+            )
 
             data_collector.save_host_info(host_info)
 
             result = data_collector.get_host_info("test-host")
 
         assert result is not None
-        assert result["host"] == "test-host"
-        assert result["status"] == "running"
-        assert result["cpu_threads"] == 16
+        assert result.host == "test-host"
+        assert result.status == "running"
+        assert result.cpu_threads == 16
 
     def test_save_host_info_failed(self, temp_data_dir):
         """失敗状態の保存が正しく動作する"""
@@ -183,12 +176,9 @@ class TestSaveAndGetHostInfo:
 
         db_path = temp_data_dir / "test.db"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "DB_PATH", db_path),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
-        ):
+        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
 
             data_collector.save_host_info_failed("test-host")
@@ -196,32 +186,30 @@ class TestSaveAndGetHostInfo:
             result = data_collector.get_host_info("test-host")
 
         assert result is not None
-        assert result["status"] == "unknown"  # ホストに到達できない場合は unknown
-        assert result["boot_time"] is None
+        assert result.status == "unknown"  # ホストに到達できない場合は unknown
+        assert result.boot_time is None
 
     def test_get_all_host_info(self, temp_data_dir):
         """全ホスト情報取得が正しく動作する"""
         from server_list.spec import data_collector
+        from server_list.spec.models import HostInfo
 
         db_path = temp_data_dir / "test.db"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "DB_PATH", db_path),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
-        ):
+        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
 
             for i in range(3):
-                host_info = {
-                    "host": f"host-{i}",
-                    "boot_time": "2024-01-01T00:00:00",
-                    "uptime_seconds": 86400.0,
-                    "status": "running",
-                    "cpu_threads": 8,
-                    "cpu_cores": 4,
-                }
+                host_info = HostInfo(
+                    host=f"host-{i}",
+                    boot_time="2024-01-01T00:00:00",
+                    uptime_seconds=86400.0,
+                    status="running",
+                    cpu_threads=8,
+                    cpu_cores=4,
+                )
                 data_collector.save_host_info(host_info)
 
             result = data_collector.get_all_host_info()
@@ -241,10 +229,9 @@ class TestCollectorStartStop:
 
         db_path = temp_data_dir / "test.db"
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
 
         with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "DB_PATH", db_path),
             unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
             unittest.mock.patch.object(data_collector, "collect_all_data"),
             unittest.mock.patch.object(data_collector, "UPDATE_INTERVAL_SEC", 0.1),

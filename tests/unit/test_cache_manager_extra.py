@@ -6,6 +6,8 @@ cache_manager.py の追加ユニットテスト（100%カバレッジ用）
 
 import unittest.mock
 
+from server_list.spec import db_config
+
 
 class TestGetCacheException:
     """get_cache 関数の例外テスト"""
@@ -15,15 +17,15 @@ class TestGetCacheException:
         from server_list.spec import cache_manager
 
         db_path = temp_data_dir / "cache.db"
+        db_config.set_cache_db_path(db_path)
 
-        with unittest.mock.patch.object(cache_manager, "DB_PATH", db_path):
-            cache_manager.init_db()
+        cache_manager.init_db()
 
-            # データベースロックを取得して例外を発生させる
-            with unittest.mock.patch.object(
-                cache_manager, "get_connection", side_effect=Exception("DB error")
-            ):
-                result = cache_manager.get_cache("test_key")
+        # データベースロックを取得して例外を発生させる
+        with unittest.mock.patch.object(
+            cache_manager, "get_connection", side_effect=Exception("DB error")
+        ):
+            result = cache_manager.get_cache("test_key")
 
         assert result is None
 
@@ -36,15 +38,15 @@ class TestSetCacheException:
         from server_list.spec import cache_manager
 
         db_path = temp_data_dir / "cache.db"
+        db_config.set_cache_db_path(db_path)
 
-        with unittest.mock.patch.object(cache_manager, "DB_PATH", db_path):
-            cache_manager.init_db()
+        cache_manager.init_db()
 
-            with unittest.mock.patch.object(
-                cache_manager, "get_connection", side_effect=Exception("DB error")
-            ):
-                # 例外が発生しても正常に終了することを確認
-                cache_manager.set_cache("test_key", {"data": "value"})
+        with unittest.mock.patch.object(
+            cache_manager, "get_connection", side_effect=Exception("DB error")
+        ):
+            # 例外が発生しても正常に終了することを確認
+            cache_manager.set_cache("test_key", {"data": "value"})
 
 
 class TestLoadConfigFromFileWithFile:
@@ -89,12 +91,9 @@ class TestGetConfigCachesResult:
         db_path = temp_data_dir / "cache.db"
         config_path = temp_data_dir / "config.yaml"
         config_path.write_text("machine:\n  - name: test\n")
+        db_config.set_cache_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(cache_manager, "CONFIG_PATH", config_path),
-        ):
+        with unittest.mock.patch.object(cache_manager, "CONFIG_PATH", config_path):
             cache_manager.init_db()
             result = cache_manager.get_config()
 
@@ -112,10 +111,9 @@ class TestUpdateAllCaches:
         db_path = temp_data_dir / "cache.db"
         config_path = temp_data_dir / "config.yaml"
         config_path.write_text("machine:\n  - name: test\n")
+        db_config.set_cache_db_path(db_path)
 
         with (
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
             unittest.mock.patch.object(cache_manager, "CONFIG_PATH", config_path),
             unittest.mock.patch("my_lib.webapp.event.notify_event"),
         ):
@@ -129,10 +127,9 @@ class TestUpdateAllCaches:
         db_path = temp_data_dir / "cache.db"
         config_path = temp_data_dir / "config.yaml"
         config_path.write_text("machine:\n  - name: test\n")
+        db_config.set_cache_db_path(db_path)
 
         with (
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
             unittest.mock.patch.object(cache_manager, "CONFIG_PATH", config_path),
             unittest.mock.patch("my_lib.webapp.event.notify_event") as mock_notify,
         ):
@@ -148,10 +145,9 @@ class TestUpdateAllCaches:
         db_path = temp_data_dir / "cache.db"
         config_path = temp_data_dir / "config.yaml"
         config_path.write_text("machine:\n  - name: test\n")
+        db_config.set_cache_db_path(db_path)
 
         with (
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
             unittest.mock.patch.object(cache_manager, "CONFIG_PATH", config_path),
             unittest.mock.patch("my_lib.webapp.event.notify_event") as mock_notify,
         ):
@@ -175,12 +171,9 @@ class TestStartCacheWorkerAlreadyRunning:
         db_path = temp_data_dir / "cache.db"
         config_path = temp_data_dir / "config.yaml"
         config_path.write_text("machine:\n  - name: test\n")
+        db_config.set_cache_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(cache_manager, "CONFIG_PATH", config_path),
-        ):
+        with unittest.mock.patch.object(cache_manager, "CONFIG_PATH", config_path):
             cache_manager.init_db()
 
             # ワーカーを開始
@@ -198,22 +191,20 @@ class TestStopCacheWorkerJoin:
 
     def test_joins_thread(self, temp_data_dir):
         """スレッドを終了待ちする"""
+        import time
+
         from server_list.spec import cache_manager
 
         db_path = temp_data_dir / "cache.db"
         config_path = temp_data_dir / "config.yaml"
         config_path.write_text("machine:\n  - name: test\n")
+        db_config.set_cache_db_path(db_path)
 
-        with (
-            unittest.mock.patch.object(cache_manager, "DB_PATH", db_path),
-            unittest.mock.patch.object(cache_manager, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(cache_manager, "CONFIG_PATH", config_path),
-        ):
+        with unittest.mock.patch.object(cache_manager, "CONFIG_PATH", config_path):
             cache_manager.init_db()
             cache_manager.start_cache_worker()
 
             # 少し待ってから停止
-            import time
             time.sleep(0.1)
 
             cache_manager.stop_cache_worker()

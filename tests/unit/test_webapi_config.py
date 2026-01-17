@@ -14,11 +14,11 @@ class TestConfigApi:
         """GET /api/config が正常に動作する"""
         with (
             unittest.mock.patch(
-                "server_list.spec.webapi.config.get_config",
+                "server_list.spec.cache_manager.get_config",
                 return_value=sample_config,
             ),
             unittest.mock.patch(
-                "server_list.spec.webapi.config.get_all_vm_info_for_host",
+                "server_list.spec.data_collector.get_all_vm_info_for_host",
                 return_value=[],
             ),
         ):
@@ -26,20 +26,22 @@ class TestConfigApi:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert "machine" in data
-        assert len(data["machine"]) == 1
-        assert data["machine"][0]["name"] == "test-server-1.example.com"
+        assert data["success"] is True
+        assert "machine" in data["data"]
+        assert len(data["data"]["machine"]) == 1
+        assert data["data"]["machine"][0]["name"] == "test-server-1.example.com"
 
     def test_get_config_not_available(self, client):
         """設定が取得できない場合に503を返す"""
         with unittest.mock.patch(
-            "server_list.spec.webapi.config.get_config",
+            "server_list.spec.cache_manager.get_config",
             return_value=None,
         ):
             response = client.get("/server-list/api/config")
 
         assert response.status_code == 503
         data = response.get_json()
+        assert data["success"] is False
         assert "error" in data
 
 
@@ -80,6 +82,7 @@ class TestEnrichConfigWithVmData:
 
     def test_enriches_esxi_host_with_vms(self):
         """ESXi ホストにVM情報が追加される"""
+        from server_list.spec.models import VMInfo
         from server_list.spec.webapi.config import enrich_config_with_vm_data
 
         config = {
@@ -91,17 +94,31 @@ class TestEnrichConfigWithVmData:
             ]
         }
         vm_list = [
-            {"vm_name": "vm1", "power_state": "poweredOn"},
-            {"vm_name": "vm2", "power_state": "poweredOff"},
+            VMInfo(
+                esxi_host="esxi-host.example.com",
+                vm_name="vm1",
+                cpu_count=2,
+                ram_mb=4096,
+                storage_gb=50.0,
+                power_state="poweredOn",
+            ),
+            VMInfo(
+                esxi_host="esxi-host.example.com",
+                vm_name="vm2",
+                cpu_count=4,
+                ram_mb=8192,
+                storage_gb=100.0,
+                power_state="poweredOff",
+            ),
         ]
 
         with (
             unittest.mock.patch(
-                "server_list.spec.webapi.config.get_all_vm_info_for_host",
+                "server_list.spec.data_collector.get_all_vm_info_for_host",
                 return_value=vm_list,
             ),
             unittest.mock.patch(
-                "server_list.spec.webapi.config.is_host_reachable",
+                "server_list.spec.data_collector.is_host_reachable",
                 return_value=True,
             ),
         ):
@@ -114,6 +131,7 @@ class TestEnrichConfigWithVmData:
 
     def test_enriches_esxi_host_with_unknown_power_state_when_unreachable(self):
         """ESXi ホストに到達できない場合、power_state が unknown になる"""
+        from server_list.spec.models import VMInfo
         from server_list.spec.webapi.config import enrich_config_with_vm_data
 
         config = {
@@ -125,16 +143,23 @@ class TestEnrichConfigWithVmData:
             ]
         }
         vm_list = [
-            {"vm_name": "vm1", "power_state": "poweredOn"},
+            VMInfo(
+                esxi_host="esxi-host.example.com",
+                vm_name="vm1",
+                cpu_count=2,
+                ram_mb=4096,
+                storage_gb=50.0,
+                power_state="poweredOn",
+            ),
         ]
 
         with (
             unittest.mock.patch(
-                "server_list.spec.webapi.config.get_all_vm_info_for_host",
+                "server_list.spec.data_collector.get_all_vm_info_for_host",
                 return_value=vm_list,
             ),
             unittest.mock.patch(
-                "server_list.spec.webapi.config.is_host_reachable",
+                "server_list.spec.data_collector.is_host_reachable",
                 return_value=False,
             ),
         ):

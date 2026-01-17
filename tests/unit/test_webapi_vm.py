@@ -12,9 +12,15 @@ class TestVmInfoApi:
 
     def test_get_vm_info_success(self, client, sample_vm_info):
         """GET /api/vm/info が正常に動作する"""
-        with unittest.mock.patch(
-            "server_list.spec.webapi.vm.get_vm_info",
-            return_value=sample_vm_info,
+        with (
+            unittest.mock.patch(
+                "server_list.spec.data_collector.get_vm_info",
+                return_value=sample_vm_info,
+            ),
+            unittest.mock.patch(
+                "server_list.spec.data_collector.is_host_reachable",
+                return_value=True,
+            ),
         ):
             response = client.get("/server-list/api/vm/info?vm_name=test-vm-1")
 
@@ -26,10 +32,16 @@ class TestVmInfoApi:
 
     def test_get_vm_info_with_esxi_host(self, client, sample_vm_info):
         """esxi_host パラメータ付きで正常に動作する"""
-        with unittest.mock.patch(
-            "server_list.spec.webapi.vm.get_vm_info",
-            return_value=sample_vm_info,
-        ) as mock_get:
+        with (
+            unittest.mock.patch(
+                "server_list.spec.data_collector.get_vm_info",
+                return_value=sample_vm_info,
+            ) as mock_get,
+            unittest.mock.patch(
+                "server_list.spec.data_collector.is_host_reachable",
+                return_value=True,
+            ),
+        ):
             response = client.get(
                 "/server-list/api/vm/info?vm_name=test-vm-1&esxi_host=test-server-1.example.com"
             )
@@ -48,7 +60,7 @@ class TestVmInfoApi:
     def test_get_vm_info_not_found(self, client):
         """VMが見つからない場合に404を返す"""
         with unittest.mock.patch(
-            "server_list.spec.webapi.vm.get_vm_info",
+            "server_list.spec.data_collector.get_vm_info",
             return_value=None,
         ):
             response = client.get("/server-list/api/vm/info?vm_name=nonexistent")
@@ -63,9 +75,15 @@ class TestVmInfoBatchApi:
 
     def test_batch_success(self, client, sample_vm_info):
         """POST /api/vm/info/batch が正常に動作する"""
-        with unittest.mock.patch(
-            "server_list.spec.webapi.vm.get_vm_info",
-            return_value=sample_vm_info,
+        with (
+            unittest.mock.patch(
+                "server_list.spec.data_collector.get_vm_info",
+                return_value=sample_vm_info,
+            ),
+            unittest.mock.patch(
+                "server_list.spec.data_collector.is_host_reachable",
+                return_value=True,
+            ),
         ):
             response = client.post(
                 "/server-list/api/vm/info/batch",
@@ -89,14 +107,36 @@ class TestVmsForHostApi:
 
     def test_get_vms_for_host(self, client):
         """GET /api/vm/host/<host> が正常に動作する"""
+        from server_list.spec.models import VMInfo
+
         vm_list = [
-            {"vm_name": "vm1", "cpu_count": 2},
-            {"vm_name": "vm2", "cpu_count": 4},
+            VMInfo(
+                esxi_host="test-server-1.example.com",
+                vm_name="vm1",
+                cpu_count=2,
+                ram_mb=4096,
+                storage_gb=50.0,
+                power_state="poweredOn",
+            ),
+            VMInfo(
+                esxi_host="test-server-1.example.com",
+                vm_name="vm2",
+                cpu_count=4,
+                ram_mb=8192,
+                storage_gb=100.0,
+                power_state="poweredOff",
+            ),
         ]
 
-        with unittest.mock.patch(
-            "server_list.spec.webapi.vm.get_all_vm_info_for_host",
-            return_value=vm_list,
+        with (
+            unittest.mock.patch(
+                "server_list.spec.data_collector.get_all_vm_info_for_host",
+                return_value=vm_list,
+            ),
+            unittest.mock.patch(
+                "server_list.spec.data_collector.is_host_reachable",
+                return_value=True,
+            ),
         ):
             response = client.get("/server-list/api/vm/host/test-server-1.example.com")
 
