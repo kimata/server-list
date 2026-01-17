@@ -223,6 +223,10 @@ class TestCollectAllData:
             unittest.mock.patch.object(data_collector, "fetch_vm_data", return_value=vm_data),
             unittest.mock.patch.object(data_collector, "fetch_host_info", return_value=host_info),
             unittest.mock.patch.object(data_collector, "Disconnect"),
+            unittest.mock.patch.object(data_collector, "collect_ilo_power_data"),
+            unittest.mock.patch.object(data_collector, "collect_prometheus_uptime_data", return_value=False),
+            unittest.mock.patch.object(data_collector, "collect_prometheus_zfs_data", return_value=False),
+            unittest.mock.patch.object(data_collector, "collect_prometheus_mount_data", return_value=False),
             unittest.mock.patch("my_lib.webapp.event.notify_event"),
         ):
             data_collector.init_db()
@@ -256,6 +260,10 @@ class TestCollectAllData:
             unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
             unittest.mock.patch.object(data_collector, "load_secret", return_value=sample_secret),
             unittest.mock.patch.object(data_collector, "connect_to_esxi", return_value=None),
+            unittest.mock.patch.object(data_collector, "collect_ilo_power_data"),
+            unittest.mock.patch.object(data_collector, "collect_prometheus_uptime_data", return_value=False),
+            unittest.mock.patch.object(data_collector, "collect_prometheus_zfs_data", return_value=False),
+            unittest.mock.patch.object(data_collector, "collect_prometheus_mount_data", return_value=False),
         ):
             data_collector.init_db()
             data_collector.collect_all_data()
