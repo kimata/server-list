@@ -177,8 +177,14 @@ def main() -> None:
 
     my_lib.logger.init("server-list", level=logging.DEBUG if debug_mode else logging.INFO)
 
+    logging.info("Starting server-list webui...")
+    logging.info("Config file: %s", config_file)
+    logging.info("Schema path: %s (exists: %s)", db.CONFIG_SCHEMA_PATH, db.CONFIG_SCHEMA_PATH.exists())
+    logging.info("Port: %s, Debug: %s", port, debug_mode)
+
     try:
         config = Config.load(pathlib.Path(config_file), db.CONFIG_SCHEMA_PATH)
+        logging.info("Config loaded successfully, %d machines defined", len(config.machine))
 
         webapp_config = my_lib.webapp.config.WebappConfig.parse({
             "static_dir_path": config.webapp.static_dir_path,
