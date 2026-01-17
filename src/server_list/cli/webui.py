@@ -179,11 +179,17 @@ def main() -> None:
 
     logging.info("Starting server-list webui...")
     logging.info("Config file: %s", config_file)
-    logging.info("Schema path: %s (exists: %s)", db.CONFIG_SCHEMA_PATH, db.CONFIG_SCHEMA_PATH.exists())
     logging.info("Port: %s, Debug: %s", port, debug_mode)
 
+    # Use cwd-relative schema path (works for both source and Docker)
+    schema_path = pathlib.Path("schema/config.schema")
+    if not schema_path.exists():
+        # Fall back to db.CONFIG_SCHEMA_PATH for source tree
+        schema_path = db.CONFIG_SCHEMA_PATH
+    logging.info("Schema path: %s (exists: %s)", schema_path, schema_path.exists())
+
     try:
-        config = Config.load(pathlib.Path(config_file), db.CONFIG_SCHEMA_PATH)
+        config = Config.load(pathlib.Path(config_file), schema_path)
         logging.info("Config loaded successfully, %d machines defined", len(config.machine))
 
         webapp_config = my_lib.webapp.config.WebappConfig.parse({
