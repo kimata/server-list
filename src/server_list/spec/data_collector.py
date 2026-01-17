@@ -1583,10 +1583,16 @@ def _update_worker():
     logging.info("Data collector started (interval: %d sec)", UPDATE_INTERVAL_SEC)
 
     # Initial collection
-    collect_all_data()
+    try:
+        collect_all_data()
+    except Exception:
+        logging.exception("Error in initial data collection")
 
     while not _should_stop.wait(UPDATE_INTERVAL_SEC):
-        collect_all_data()
+        try:
+            collect_all_data()
+        except Exception:
+            logging.exception("Error in periodic data collection")
 
     logging.info("Data collector stopped")
 
