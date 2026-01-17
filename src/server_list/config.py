@@ -18,7 +18,8 @@ class StorageConfig:
     volume: str
 
     @classmethod
-    def from_dict(cls, data: dict) -> "StorageConfig":
+    def parse(cls, data: dict) -> "StorageConfig":
+        """Parse from dictionary."""
         return cls(
             name=data["name"],
             model=data["model"],
@@ -33,7 +34,8 @@ class VmConfig:
     name: str
 
     @classmethod
-    def from_dict(cls, data: dict) -> "VmConfig":
+    def parse(cls, data: dict) -> "VmConfig":
+        """Parse from dictionary."""
         return cls(name=data["name"])
 
 
@@ -46,7 +48,8 @@ class MountConfig:
     type: str = "filesystem"  # "btrfs", "filesystem", or "windows"
 
     @classmethod
-    def from_dict(cls, data: dict) -> "MountConfig":
+    def parse(cls, data: dict) -> "MountConfig":
+        """Parse from dictionary."""
         label = data["label"]
         # If path is not specified, use label as display path
         path = data.get("path", label)
@@ -66,22 +69,22 @@ class MachineConfig:
     cpu: str
     ram: str
     os: str
-    storage: list[StorageConfig] | str = field(default_factory=list)
+    storage: list[StorageConfig] = field(default_factory=list)
+    filesystem: list[str] = field(default_factory=list)  # e.g., ["zfs"]
     esxi: str | None = None
     ilo: str | None = None
     vm: list[VmConfig] = field(default_factory=list)
     mount: list[MountConfig] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "MachineConfig":
+    def parse(cls, data: dict) -> "MachineConfig":
+        """Parse from dictionary."""
         raw_storage = data.get("storage", [])
-        # Support both array of storage objects and string 'zfs'
-        if isinstance(raw_storage, str):
-            storage: list[StorageConfig] | str = raw_storage
-        else:
-            storage = [StorageConfig.from_dict(s) for s in raw_storage]
-        vm = [VmConfig.from_dict(v) for v in data.get("vm", [])]
-        mount = [MountConfig.from_dict(m) for m in data.get("mount", [])]
+        # Parse storage as array of objects
+        storage = [StorageConfig.parse(s) for s in raw_storage] if raw_storage else []
+        filesystem = data.get("filesystem", [])
+        vm = [VmConfig.parse(v) for v in data.get("vm", [])]
+        mount = [MountConfig.parse(m) for m in data.get("mount", [])]
         return cls(
             name=data["name"],
             mode=data["mode"],
@@ -89,6 +92,7 @@ class MachineConfig:
             ram=data["ram"],
             os=data["os"],
             storage=storage,
+            filesystem=filesystem,
             esxi=data.get("esxi"),
             ilo=data.get("ilo"),
             vm=vm,
@@ -105,13 +109,12 @@ class MachineConfig:
             "os": self.os,
         }
         if self.storage:
-            if isinstance(self.storage, str):
-                result["storage"] = self.storage
-            else:
-                result["storage"] = [
-                    {"name": s.name, "model": s.model, "volume": s.volume}
-                    for s in self.storage
-                ]
+            result["storage"] = [
+                {"name": s.name, "model": s.model, "volume": s.volume}
+                for s in self.storage
+            ]
+        if self.filesystem:
+            result["filesystem"] = self.filesystem
         if self.esxi:
             result["esxi"] = self.esxi
         if self.ilo:
@@ -134,7 +137,8 @@ class WebappConfig:
     image_dir_path: str
 
     @classmethod
-    def from_dict(cls, data: dict) -> "WebappConfig":
+    def parse(cls, data: dict) -> "WebappConfig":
+        """Parse from dictionary."""
         return cls(
             static_dir_path=data["static_dir_path"],
             image_dir_path=data["image_dir_path"],
@@ -162,7 +166,8 @@ class DataConfig:
     cache: str
 
     @classmethod
-    def from_dict(cls, data: dict) -> "DataConfig":
+    def parse(cls, data: dict) -> "DataConfig":
+        """Parse from dictionary."""
         return cls(cache=data["cache"])
 
     def get_cache_dir(self, base_dir: Path) -> Path:
@@ -182,11 +187,11 @@ class Config:
     machine: list[MachineConfig]
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Config":
-        """Create Config from dictionary (parsed YAML)."""
-        webapp = WebappConfig.from_dict(data["webapp"])
-        data_config = DataConfig.from_dict(data["data"])
-        machines = [MachineConfig.from_dict(m) for m in data["machine"]]
+    def parse(cls, data: dict) -> "Config":
+        """Parse from dictionary (parsed YAML)."""
+        webapp = WebappConfig.parse(data["webapp"])
+        data_config = DataConfig.parse(data["data"])
+        machines = [MachineConfig.parse(m) for m in data["machine"]]
         return cls(
             webapp=webapp,
             data=data_config,
@@ -199,7 +204,7 @@ class Config:
         import my_lib.config
 
         data = my_lib.config.load(config_path, schema_path)
-        return cls.from_dict(data)
+        return cls.parse(data)
 
     def get_machine_by_name(self, name: str) -> MachineConfig | None:
         """Find machine by name."""

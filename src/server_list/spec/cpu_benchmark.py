@@ -8,13 +8,12 @@ import logging
 import re
 import time
 
+import bs4
 import requests
-from bs4 import BeautifulSoup
 
-from server_list.spec.db import CPU_SPEC_DB, get_connection
-
-# Re-export for backward compatibility with tests
-DB_PATH = CPU_SPEC_DB
+from server_list.spec.db import get_connection
+from server_list.spec.db_config import get_cpu_spec_db_path
+from server_list.spec.models import CPUBenchmark
 
 MULTITHREAD_URL = "https://www.cpubenchmark.net/multithread/"
 SINGLETHREAD_URL = "https://www.cpubenchmark.net/singleThread.html"
@@ -38,7 +37,7 @@ CREATE TABLE IF NOT EXISTS cpu_benchmark (
 
 def init_db():
     """Initialize the SQLite database."""
-    with get_connection(DB_PATH) as conn:
+    with get_connection(get_cpu_spec_db_path()) as conn:
         conn.executescript(CPU_BENCHMARK_SCHEMA)
         conn.commit()
 
@@ -73,48 +72,73 @@ def normalize_cpu_name(cpu_name: str) -> str:
     return name
 
 
-def calculate_match_score(search_name: str, candidate_name: str) -> float:
-    """Calculate how well the candidate matches the search name."""
-    # Normalize both names before comparing
-    search_lower = normalize_cpu_name(search_name).lower()
-    candidate_lower = normalize_cpu_name(candidate_name).lower()
-
+def _match_by_model_number(
+    search_name: str, candidate_name: str, search_lower: str, candidate_lower: str
+) -> float | None:
+    """モデル番号による精密マッチング."""
     search_model = extract_model_number(search_name)
     candidate_model = extract_model_number(candidate_name)
 
-    if search_model and candidate_model:
-        if search_model == candidate_model:
-            return 1.0
-        if search_model in candidate_model or candidate_model in search_model:
-            search_version = re.search(r"v(\d)", search_lower)
-            candidate_version = re.search(r"v(\d)", candidate_lower)
-            if search_version and candidate_version:
-                if search_version.group(1) != candidate_version.group(1):
-                    return 0.3
-            return 0.9
+    if not search_model or not candidate_model:
+        return None
 
-    if search_lower == candidate_lower:
+    if search_model == candidate_model:
         return 1.0
 
-    search_id_match = re.search(r"e5-(\d{4})", search_lower)
-    candidate_id_match = re.search(r"e5-(\d{4})", candidate_lower)
-    if search_id_match and candidate_id_match:
-        if search_id_match.group(1) == candidate_id_match.group(1):
-            search_v = re.search(r"v(\d)", search_lower)
-            candidate_v = re.search(r"v(\d)", candidate_lower)
-            if search_v and candidate_v and search_v.group(1) == candidate_v.group(1):
-                return 0.95
-            elif not search_v and not candidate_v:
-                return 0.95
+    if search_model not in candidate_model and candidate_model not in search_model:
+        return None
+
+    # 部分一致の場合、バージョンチェック
+    search_version = re.search(r"v(\d)", search_lower)
+    candidate_version = re.search(r"v(\d)", candidate_lower)
+    if search_version and candidate_version:
+        if search_version.group(1) != candidate_version.group(1):
+            return 0.3
+    return 0.9
+
+
+def _match_xeon_e5(search_lower: str, candidate_lower: str) -> float | None:
+    """Xeon E5 シリーズの特別マッチング."""
+    search_id = re.search(r"e5-(\d{4})", search_lower)
+    candidate_id = re.search(r"e5-(\d{4})", candidate_lower)
+
+    if not search_id or not candidate_id:
+        return None
+
+    if search_id.group(1) != candidate_id.group(1):
         return 0.2
 
+    # 同一モデル - バージョンチェック
+    search_v = re.search(r"v(\d)", search_lower)
+    candidate_v = re.search(r"v(\d)", candidate_lower)
+
+    if search_v and candidate_v and search_v.group(1) == candidate_v.group(1):
+        return 0.95
+    if not search_v and not candidate_v:
+        return 0.95
+
+    return 0.2
+
+
+def _match_core_i(search_lower: str, candidate_lower: str) -> float | None:
+    """Intel Core i シリーズの特別マッチング."""
     search_core = re.search(r"i([3579])-(\d{4,5})", search_lower)
     candidate_core = re.search(r"i([3579])-(\d{4,5})", candidate_lower)
-    if search_core and candidate_core:
-        if search_core.group(1) == candidate_core.group(1) and search_core.group(2) == candidate_core.group(2):
-            return 0.95
-        return 0.2
 
+    if not search_core or not candidate_core:
+        return None
+
+    if (
+        search_core.group(1) == candidate_core.group(1)
+        and search_core.group(2) == candidate_core.group(2)
+    ):
+        return 0.95
+
+    return 0.2
+
+
+def _match_by_word_overlap(search_lower: str, candidate_lower: str) -> float:
+    """単語の重複によるファジーマッチング."""
     search_words = set(re.findall(r"\w+", search_lower))
     candidate_words = set(re.findall(r"\w+", candidate_lower))
 
@@ -125,45 +149,98 @@ def calculate_match_score(search_name: str, candidate_name: str) -> float:
     return len(common_words) / len(search_words) * 0.5
 
 
+def calculate_match_score(search_name: str, candidate_name: str) -> float:
+    """Calculate how well the candidate matches the search name."""
+    search_lower = normalize_cpu_name(search_name).lower()
+    candidate_lower = normalize_cpu_name(candidate_name).lower()
+
+    # 1. モデル番号による精密マッチング
+    if (score := _match_by_model_number(search_name, candidate_name, search_lower, candidate_lower)) is not None:
+        return score
+
+    # 2. 完全一致
+    if search_lower == candidate_lower:
+        return 1.0
+
+    # 3. Xeon E5 シリーズ特別処理
+    if (score := _match_xeon_e5(search_lower, candidate_lower)) is not None:
+        return score
+
+    # 4. Core i シリーズ特別処理
+    if (score := _match_core_i(search_lower, candidate_lower)) is not None:
+        return score
+
+    # 5. 単語重複によるファジーマッチング
+    return _match_by_word_overlap(search_lower, candidate_lower)
+
+
+def _extract_benchmark_score_from_chart_entry(entry_text: str) -> int | None:
+    """チャートエントリからベンチマークスコアを抽出.
+
+    Args:
+        entry_text: エントリのテキスト (例: "CPU Name(XX%)12,345$XXX")
+
+    Returns:
+        ベンチマークスコア (int) または None
+    """
+    score_match = re.search(r"\)\s*([\d,]+)", entry_text)
+    if not score_match:
+        return None
+
+    try:
+        return int(score_match.group(1).replace(",", ""))
+    except ValueError:
+        return None
+
+
+def _extract_benchmark_score_from_table_cell(cell_text: str) -> int | None:
+    """テーブルセルからベンチマークスコアを抽出.
+
+    Args:
+        cell_text: セルのテキスト
+
+    Returns:
+        ベンチマークスコア (int) または None
+    """
+    try:
+        return int(re.sub(r"[^\d]", "", cell_text))
+    except ValueError:
+        return None
+
+
 def search_chart_page(url: str, cpu_name: str) -> tuple[str | None, int | None]:
     """Search for CPU on a chart page (multithread or singlethread)."""
     try:
         response = requests.get(url, headers=HEADERS, timeout=30)
         response.raise_for_status()
-
-        soup = BeautifulSoup(response.text, "html.parser")
-        entries = soup.select("ul.chartlist li")
-
-        best_match_name = None
-        best_match_score_value = None
-        best_score = 0.0
-
-        for entry in entries:
-            link = entry.select_one("a")
-            if not link:
-                continue
-
-            entry_cpu_name = link.get_text(strip=True)
-            match_score = calculate_match_score(cpu_name, entry_cpu_name)
-
-            if match_score > best_score and match_score > 0.5:
-                entry_text = entry.get_text()
-                # Format: "CPU Name(XX%)12,345$XXX" or "CPU Name(XX%)12,345NA"
-                score_match = re.search(r"\)\s*([\d,]+)", entry_text)
-                if score_match:
-                    try:
-                        benchmark_score = int(score_match.group(1).replace(",", ""))
-                        best_match_name = entry_cpu_name
-                        best_match_score_value = benchmark_score
-                        best_score = match_score
-                    except ValueError:
-                        pass
-
-        return best_match_name, best_match_score_value
-
     except requests.RequestException as e:
-        print(f"Error fetching {url}: {e}")
+        logging.warning("Error fetching %s: %s", url, e)
         return None, None
+
+    soup = bs4.BeautifulSoup(response.text, "html.parser")
+    entries = soup.select("ul.chartlist li")
+
+    best_match_name = None
+    best_match_score_value = None
+    best_score = 0.0
+
+    for entry in entries:
+        link = entry.select_one("a")
+        if not link:
+            continue
+
+        entry_cpu_name = link.get_text(strip=True)
+        match_score = calculate_match_score(cpu_name, entry_cpu_name)
+        if match_score <= best_score or match_score <= 0.5:
+            continue
+
+        benchmark_score = _extract_benchmark_score_from_chart_entry(entry.get_text())
+        if benchmark_score is not None:
+            best_match_name = entry_cpu_name
+            best_match_score_value = benchmark_score
+            best_score = match_score
+
+    return best_match_name, best_match_score_value
 
 
 def search_cpu_list(cpu_name: str) -> tuple[str | None, int | None]:
@@ -171,57 +248,53 @@ def search_cpu_list(cpu_name: str) -> tuple[str | None, int | None]:
     try:
         response = requests.get(CPU_LIST_URL, headers=HEADERS, timeout=30)
         response.raise_for_status()
-
-        soup = BeautifulSoup(response.text, "html.parser")
-        table = soup.find("table", id="cputable")
-
-        if not table:
-            return None, None
-
-        tbody = table.find("tbody")
-        if not tbody:
-            return None, None
-
-        best_match_name = None
-        best_match_score_value = None
-        best_score = 0.0
-
-        for row in tbody.find_all("tr"):
-            cells = row.find_all("td")
-            if len(cells) < 2:
-                continue
-
-            name_link = cells[0].find("a")
-            if not name_link:
-                continue
-
-            entry_cpu_name = name_link.get_text(strip=True)
-            match_score = calculate_match_score(cpu_name, entry_cpu_name)
-
-            if match_score > best_score and match_score > 0.5:
-                try:
-                    score_text = cells[1].get_text(strip=True)
-                    benchmark_score = int(re.sub(r"[^\d]", "", score_text))
-                    best_match_name = entry_cpu_name
-                    best_match_score_value = benchmark_score
-                    best_score = match_score
-                except ValueError:
-                    pass
-
-        return best_match_name, best_match_score_value
-
     except requests.RequestException as e:
-        print(f"Error fetching CPU list page: {e}")
+        logging.warning("Error fetching CPU list page: %s", e)
         return None, None
 
+    soup = bs4.BeautifulSoup(response.text, "html.parser")
+    table = soup.find("table", id="cputable")
+    if not table:
+        return None, None
 
-def search_cpu_benchmark(cpu_name: str) -> dict | None:
+    tbody = table.find("tbody")
+    if not tbody:
+        return None, None
+
+    best_match_name = None
+    best_match_score_value = None
+    best_score = 0.0
+
+    for row in tbody.find_all("tr"):
+        cells = row.find_all("td")
+        if len(cells) < 2:
+            continue
+
+        name_link = cells[0].find("a")
+        if not name_link:
+            continue
+
+        entry_cpu_name = name_link.get_text(strip=True)
+        match_score = calculate_match_score(cpu_name, entry_cpu_name)
+        if match_score <= best_score or match_score <= 0.5:
+            continue
+
+        benchmark_score = _extract_benchmark_score_from_table_cell(cells[1].get_text(strip=True))
+        if benchmark_score is not None:
+            best_match_name = entry_cpu_name
+            best_match_score_value = benchmark_score
+            best_score = match_score
+
+    return best_match_name, best_match_score_value
+
+
+def search_cpu_benchmark(cpu_name: str) -> CPUBenchmark | None:
     """
     Search for CPU benchmark scores on cpubenchmark.net.
 
     Fetches both multi-thread and single-thread scores.
 
-    Returns dict with multi_thread_score and single_thread_score, or None if not found.
+    Returns CPUBenchmark with multi_thread_score and single_thread_score, or None if not found.
     """
     normalized_name = normalize_cpu_name(cpu_name)
 
@@ -239,16 +312,16 @@ def search_cpu_benchmark(cpu_name: str) -> dict | None:
     if not result_name:
         return None
 
-    return {
-        "cpu_name": result_name,
-        "multi_thread_score": multi_score,
-        "single_thread_score": single_score,
-    }
+    return CPUBenchmark(
+        cpu_name=result_name,
+        multi_thread_score=multi_score,
+        single_thread_score=single_score,
+    )
 
 
 def save_benchmark(cpu_name: str, multi_thread: int | None, single_thread: int | None):
     """Save benchmark data to database."""
-    with get_connection(DB_PATH) as conn:
+    with get_connection(get_cpu_spec_db_path()) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT OR REPLACE INTO cpu_benchmark (cpu_name, multi_thread_score, single_thread_score, updated_at)
@@ -257,12 +330,12 @@ def save_benchmark(cpu_name: str, multi_thread: int | None, single_thread: int |
         conn.commit()
 
 
-def get_benchmark(cpu_name: str) -> dict | None:
+def get_benchmark(cpu_name: str) -> CPUBenchmark | None:
     """Get benchmark data from database."""
     normalized_name = normalize_cpu_name(cpu_name)
     logging.debug("Looking up CPU benchmark for: %s (normalized: %s)", cpu_name, normalized_name)
 
-    with get_connection(DB_PATH) as conn:
+    with get_connection(get_cpu_spec_db_path()) as conn:
         cursor = conn.cursor()
 
         # First try exact match
@@ -309,11 +382,11 @@ def get_benchmark(cpu_name: str) -> dict | None:
 
         if row:
             logging.debug("Found benchmark for %s: multi=%s, single=%s", cpu_name, row[1], row[2])
-            return {
-                "cpu_name": row[0],
-                "multi_thread_score": row[1],
-                "single_thread_score": row[2],
-            }
+            return CPUBenchmark(
+                cpu_name=row[0],
+                multi_thread_score=row[1],
+                single_thread_score=row[2],
+            )
 
     logging.debug("No benchmark found for: %s", cpu_name)
     return None
@@ -321,24 +394,24 @@ def get_benchmark(cpu_name: str) -> dict | None:
 
 def clear_benchmark(cpu_name: str):
     """Clear benchmark data from database."""
-    with get_connection(DB_PATH) as conn:
+    with get_connection(get_cpu_spec_db_path()) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM cpu_benchmark WHERE cpu_name = ?", (cpu_name,))
         conn.commit()
 
 
-def fetch_and_save_benchmark(cpu_name: str) -> dict | None:
+def fetch_and_save_benchmark(cpu_name: str) -> CPUBenchmark | None:
     """Fetch benchmark from web and save to database."""
     logging.info("Fetching CPU benchmark from web for: %s", cpu_name)
     result = search_cpu_benchmark(cpu_name)
 
     if result:
         logging.info("Found benchmark for %s: multi=%s, single=%s",
-                     cpu_name, result.get("multi_thread_score"), result.get("single_thread_score"))
+                     cpu_name, result.multi_thread_score, result.single_thread_score)
         save_benchmark(
             cpu_name,
-            result.get("multi_thread_score"),
-            result.get("single_thread_score")
+            result.multi_thread_score,
+            result.single_thread_score
         )
         return result
 
@@ -348,6 +421,7 @@ def fetch_and_save_benchmark(cpu_name: str) -> dict | None:
 
 def main():
     """Main function to test the scraper."""
+    logging.basicConfig(level=logging.INFO)
     init_db()
 
     test_cpus = [
@@ -356,7 +430,7 @@ def main():
     ]
 
     for cpu in test_cpus:
-        print(f"\nSearching for: {cpu}")
+        logging.info("Searching for: %s", cpu)
 
         # Clear existing cache to re-fetch
         clear_benchmark(cpu)
@@ -364,9 +438,9 @@ def main():
         # Fetch from web
         result = fetch_and_save_benchmark(cpu)
         if result:
-            print(f"  Found: {result}")
+            logging.info("  Found: %s", result)
         else:
-            print("  Not found")
+            logging.info("  Not found")
 
         # Be nice to the server
         time.sleep(2)

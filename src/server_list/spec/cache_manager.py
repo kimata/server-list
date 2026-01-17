@@ -14,10 +14,8 @@ import yaml
 
 import my_lib.webapp.event
 
-from server_list.spec.db import CACHE_DB, CONFIG_PATH, DATA_DIR, get_connection
-
-# Re-export for backward compatibility with tests
-DB_PATH = CACHE_DB
+from server_list.spec.db import CONFIG_PATH, get_connection
+from server_list.spec.db_config import get_cache_db_path
 
 UPDATE_INTERVAL_SEC = 300  # 5 minutes
 
@@ -37,15 +35,25 @@ CREATE TABLE IF NOT EXISTS cache (
 
 def init_db():
     """Initialize the cache database."""
-    with get_connection(DB_PATH) as conn:
+    with get_connection(get_cache_db_path()) as conn:
         conn.executescript(CACHE_SCHEMA)
         conn.commit()
 
 
 def get_cache(key: str) -> dict | list | None:
-    """Get cached value by key."""
+    """Get cached value by key (internal use).
+
+    For type-safe access, use the specialized getters:
+    - get_config() for config cache (returns dict | None)
+
+    Args:
+        key: Cache key to retrieve
+
+    Returns:
+        Cached value as dict or list, or None if not found
+    """
     try:
-        with _db_lock, get_connection(DB_PATH) as conn:
+        with _db_lock, get_connection(get_cache_db_path()) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT value FROM cache WHERE key = ?", (key,))
             row = cursor.fetchone()
@@ -61,7 +69,7 @@ def get_cache(key: str) -> dict | list | None:
 def set_cache(key: str, value: dict | list):
     """Set cache value."""
     try:
-        with _db_lock, get_connection(DB_PATH) as conn:
+        with _db_lock, get_connection(get_cache_db_path()) as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT OR REPLACE INTO cache (key, value, updated_at)
@@ -84,7 +92,14 @@ def load_config_from_file() -> dict | None:
 
 
 def get_config() -> dict | None:
-    """Get config from cache, or load from file if not cached."""
+    """Get config from cache, or load from file if not cached.
+
+    This is the recommended way to access config data, providing
+    type-safe access with dict | None return type.
+
+    Returns:
+        Config dictionary or None if not available
+    """
     cached = get_cache("config")
     if cached and isinstance(cached, dict):
         return cached

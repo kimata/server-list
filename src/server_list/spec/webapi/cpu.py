@@ -4,18 +4,13 @@ Web API for CPU benchmark data.
 Endpoint: /server-list/api/cpu/benchmark
 """
 
-from flask import Blueprint, jsonify, request
+import dataclasses
 
-from server_list.spec.cpu_benchmark import (
-    get_benchmark,
-    fetch_and_save_benchmark,
-    init_db,
-)
+import flask
 
-cpu_api = Blueprint("cpu_api", __name__)
+import server_list.spec.cpu_benchmark as cpu_benchmark
 
-# Initialize database once at module load
-init_db()
+cpu_api = flask.Blueprint("cpu_api", __name__)
 
 
 @cpu_api.route("/cpu/benchmark", methods=["GET"])
@@ -30,32 +25,32 @@ def get_cpu_benchmark():
     Returns:
         JSON with cpu_name, multi_thread_score, single_thread_score
     """
-    cpu_name = request.args.get("cpu")
+    cpu_name = flask.request.args.get("cpu")
 
     if not cpu_name:
-        return jsonify({"error": "CPU name is required"}), 400
+        return flask.jsonify({"success": False, "error": "CPU name is required"}), 400
 
     # Check database first
-    result = get_benchmark(cpu_name)
+    result = cpu_benchmark.get_benchmark(cpu_name)
 
     if result:
-        return jsonify({
+        return flask.jsonify({
             "success": True,
-            "data": result,
+            "data": dataclasses.asdict(result),
             "source": "cache"
         })
 
     # Optionally fetch from web
-    if request.args.get("fetch", "").lower() == "true":
-        result = fetch_and_save_benchmark(cpu_name)
+    if flask.request.args.get("fetch", "").lower() == "true":
+        result = cpu_benchmark.fetch_and_save_benchmark(cpu_name)
         if result:
-            return jsonify({
+            return flask.jsonify({
                 "success": True,
-                "data": result,
+                "data": dataclasses.asdict(result),
                 "source": "web"
             })
 
-    return jsonify({
+    return flask.jsonify({
         "success": False,
         "error": f"Benchmark data not found for: {cpu_name}"
     }), 404
@@ -73,30 +68,30 @@ def get_cpu_benchmarks_batch():
     Returns:
         JSON with results for each CPU
     """
-    data = request.get_json()
+    data = flask.request.get_json()
 
     if not data or "cpus" not in data:
-        return jsonify({"error": "CPU list is required"}), 400
+        return flask.jsonify({"success": False, "error": "CPU list is required"}), 400
 
     cpu_list = data["cpus"]
     should_fetch = data.get("fetch", False)
     results = {}
 
     for cpu_name in cpu_list:
-        result = get_benchmark(cpu_name)
+        result = cpu_benchmark.get_benchmark(cpu_name)
         if result:
             results[cpu_name] = {
                 "success": True,
-                "data": result,
+                "data": dataclasses.asdict(result),
                 "source": "cache"
             }
         elif should_fetch:
             # Fetch from web if not in cache
-            result = fetch_and_save_benchmark(cpu_name)
+            result = cpu_benchmark.fetch_and_save_benchmark(cpu_name)
             if result:
                 results[cpu_name] = {
                     "success": True,
-                    "data": result,
+                    "data": dataclasses.asdict(result),
                     "source": "web"
                 }
             else:
@@ -110,7 +105,7 @@ def get_cpu_benchmarks_batch():
                 "data": None
             }
 
-    return jsonify({
+    return flask.jsonify({
         "success": True,
         "results": results
     })

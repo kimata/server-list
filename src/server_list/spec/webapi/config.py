@@ -7,15 +7,12 @@ Uses cache for fast responses.
 For ESXi hosts, VM list is automatically populated from collected data.
 """
 
-from flask import Blueprint, jsonify
+import flask
 
-from server_list.spec.cache_manager import get_config, init_db
-from server_list.spec.data_collector import get_all_vm_info_for_host, is_host_reachable
+import server_list.spec.cache_manager as cache_manager
+import server_list.spec.data_collector as data_collector
 
-config_api = Blueprint("config_api", __name__)
-
-# Initialize cache database
-init_db()
+config_api = flask.Blueprint("config_api", __name__)
 
 
 def is_esxi_host(machine: dict) -> bool:
@@ -44,17 +41,17 @@ def enrich_config_with_vm_data(config: dict) -> dict:
         if is_esxi_host(machine_copy):
             # Get VM list from collected ESXi data
             host_name = machine_copy.get("name", "")
-            vm_list = get_all_vm_info_for_host(host_name)
+            vm_list = data_collector.get_all_vm_info_for_host(host_name)
 
             if vm_list:
                 # Check if host is reachable to determine power_state handling
-                host_reachable = is_host_reachable(host_name)
+                host_reachable = data_collector.is_host_reachable(host_name)
 
                 # Convert to config format with additional info
                 machine_copy["vm"] = [
                     {
-                        "name": vm["vm_name"],
-                        "power_state": vm.get("power_state") if host_reachable else "unknown",
+                        "name": vm.vm_name,
+                        "power_state": vm.power_state if host_reachable else "unknown",
                     }
                     for vm in vm_list
                 ]
@@ -74,11 +71,17 @@ def get_config_api():
     Returns:
         JSON with machine configuration data
     """
-    config = get_config()
+    config = cache_manager.get_config()
 
     if config:
         # Enrich config with VM data from ESXi
         enriched_config = enrich_config_with_vm_data(config)
-        return jsonify(enriched_config)
+        return flask.jsonify({
+            "success": True,
+            "data": enriched_config,
+        })
 
-    return jsonify({"error": "Config not available"}), 503
+    return flask.jsonify({
+        "success": False,
+        "error": "Config not available",
+    }), 503

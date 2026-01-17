@@ -4,38 +4,38 @@ Web API for VM information.
 Endpoint: /server-list/api/vm
 """
 
-from flask import Blueprint, jsonify, request
+import dataclasses
 
-from server_list.spec.data_collector import (
-    get_vm_info,
-    get_all_vm_info_for_host,
-    is_host_reachable,
-    collect_host_data,
-)
+import flask
 
-vm_api = Blueprint("vm_api", __name__)
+import server_list.spec.data_collector as data_collector
+from server_list.spec.models import VMInfo  # Used in type annotation
+
+vm_api = flask.Blueprint("vm_api", __name__)
 
 
-def apply_unknown_power_state_if_unreachable(vm_info: dict | None) -> dict | None:
+def apply_unknown_power_state_if_unreachable(vm_info: VMInfo | None) -> dict | None:
     """Apply 'unknown' power_state if the ESXi host is unreachable.
 
     When ESXi host cannot be contacted, we use cached data but
     set power_state to 'unknown' to indicate the current state
     cannot be determined. The original cached value is preserved
     in cached_power_state for resource calculations.
+
+    Converts VMInfo to dict for JSON serialization.
     """
     if vm_info is None:
         return None
 
-    vm_info = dict(vm_info)  # Make a copy to avoid modifying original
-    cached_power_state = vm_info.get("power_state")
-    vm_info["cached_power_state"] = cached_power_state
+    result = dataclasses.asdict(vm_info)
+    cached_power_state = result.get("power_state")
+    result["cached_power_state"] = cached_power_state
 
-    esxi_host = vm_info.get("esxi_host")
-    if esxi_host and not is_host_reachable(esxi_host):
-        vm_info["power_state"] = "unknown"
+    esxi_host = result.get("esxi_host")
+    if esxi_host and not data_collector.is_host_reachable(esxi_host):
+        result["power_state"] = "unknown"
 
-    return vm_info
+    return result
 
 
 @vm_api.route("/vm/info", methods=["GET"])
@@ -50,24 +50,24 @@ def get_vm_info_api():
     Returns:
         JSON with VM info (cpu_count, ram_mb, storage_gb, power_state, collected_at)
     """
-    vm_name = request.args.get("vm_name")
+    vm_name = flask.request.args.get("vm_name")
 
     if not vm_name:
-        return jsonify({"error": "vm_name is required"}), 400
+        return flask.jsonify({"success": False, "error": "vm_name is required"}), 400
 
-    esxi_host = request.args.get("esxi_host")
+    esxi_host = flask.request.args.get("esxi_host")
 
-    result = get_vm_info(vm_name, esxi_host)
+    result = data_collector.get_vm_info(vm_name, esxi_host)
 
     if result:
         # Apply unknown power_state if host is unreachable
-        result = apply_unknown_power_state_if_unreachable(result)
-        return jsonify({
+        result_dict = apply_unknown_power_state_if_unreachable(result)
+        return flask.jsonify({
             "success": True,
-            "data": result
+            "data": result_dict
         })
 
-    return jsonify({
+    return flask.jsonify({
         "success": False,
         "error": f"VM not found: {vm_name}"
     }), 404
@@ -85,23 +85,23 @@ def get_vm_info_batch():
     Returns:
         JSON with results for each VM
     """
-    data = request.get_json()
+    data = flask.request.get_json()
 
     if not data or "vms" not in data:
-        return jsonify({"error": "VM list is required"}), 400
+        return flask.jsonify({"success": False, "error": "VM list is required"}), 400
 
     vm_list = data["vms"]
     esxi_host = data.get("esxi_host")
     results = {}
 
     for vm_name in vm_list:
-        result = get_vm_info(vm_name, esxi_host)
+        result = data_collector.get_vm_info(vm_name, esxi_host)
         if result:
             # Apply unknown power_state if host is unreachable
-            result = apply_unknown_power_state_if_unreachable(result)
+            result_dict = apply_unknown_power_state_if_unreachable(result)
             results[vm_name] = {
                 "success": True,
-                "data": result
+                "data": result_dict
             }
         else:
             results[vm_name] = {
@@ -109,7 +109,7 @@ def get_vm_info_batch():
                 "data": None
             }
 
-    return jsonify({
+    return flask.jsonify({
         "success": True,
         "results": results
     })
@@ -123,24 +123,24 @@ def get_vms_for_host(esxi_host: str):
     Returns:
         JSON with list of VMs and their info
     """
-    vms = get_all_vm_info_for_host(esxi_host)
+    vms = data_collector.get_all_vm_info_for_host(esxi_host)
 
     # Apply unknown power_state if host is unreachable
     # Keep cached_power_state for resource calculations
-    host_reachable = is_host_reachable(esxi_host)
-    vms = [
+    host_reachable = data_collector.is_host_reachable(esxi_host)
+    vms_result = [
         {
-            **vm,
-            "cached_power_state": vm.get("power_state"),
-            "power_state": vm.get("power_state") if host_reachable else "unknown",
+            **dataclasses.asdict(vm),
+            "cached_power_state": vm.power_state,
+            "power_state": vm.power_state if host_reachable else "unknown",
         }
         for vm in vms
     ]
 
-    return jsonify({
+    return flask.jsonify({
         "success": True,
         "esxi_host": esxi_host,
-        "vms": vms
+        "vms": vms_result
     })
 
 
@@ -156,15 +156,15 @@ def refresh_host_data(esxi_host: str):
     Returns:
         JSON with success status
     """
-    success = collect_host_data(esxi_host)
+    success = data_collector.collect_host_data(esxi_host)
 
     if success:
-        return jsonify({
+        return flask.jsonify({
             "success": True,
             "message": f"Data collection completed for {esxi_host}",
         })
 
-    return jsonify({
+    return flask.jsonify({
         "success": False,
         "error": f"Failed to collect data from {esxi_host}",
     }), 500

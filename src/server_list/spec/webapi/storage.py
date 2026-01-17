@@ -4,6 +4,8 @@ Storage API for ZFS pools and mount points.
 Provides storage information via REST API from SQLite cache.
 """
 
+import dataclasses
+
 import flask
 
 from server_list.spec.data_collector import get_mount_info, get_zfs_pool_info
@@ -19,7 +21,7 @@ def get_host_zfs_pools(host: str):
     if pools:
         return flask.jsonify({
             "success": True,
-            "data": pools,
+            "data": [dataclasses.asdict(p) for p in pools],
         })
 
     return flask.jsonify({
@@ -36,7 +38,7 @@ def get_host_mounts(host: str):
     if mounts:
         return flask.jsonify({
             "success": True,
-            "data": mounts,
+            "data": [dataclasses.asdict(m) for m in mounts],
         })
 
     return flask.jsonify({

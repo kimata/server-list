@@ -28,7 +28,7 @@ import my_lib.webapp.config
 import my_lib.webapp.event
 import my_lib.webapp.util
 
-from server_list.spec import cache_manager, data_collector, db
+from server_list.spec import cache_manager, cpu_benchmark, data_collector, db
 from server_list.spec.cache_manager import start_cache_worker, stop_cache_worker
 from server_list.spec.data_collector import start_collector, stop_collector
 from server_list.spec.ogp import (
@@ -139,6 +139,7 @@ def create_app(
 
     # Initialize databases (required for API to work)
     cache_manager.init_db()
+    cpu_benchmark.init_db()
     data_collector.init_db()
 
     # Start background workers
