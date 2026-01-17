@@ -159,6 +159,8 @@ def create_app(
 
 def main() -> None:
     import pathlib
+    import sys
+    import traceback
 
     import docopt
     import my_lib.logger
@@ -175,23 +177,27 @@ def main() -> None:
 
     my_lib.logger.init("server-list", level=logging.DEBUG if debug_mode else logging.INFO)
 
-    config = Config.load(pathlib.Path(config_file), pathlib.Path("schema/config.schema"))
-
-    webapp_config = my_lib.webapp.config.WebappConfig.parse({
-        "static_dir_path": config.webapp.static_dir_path,
-    })
-
-    app = create_app(webapp_config, config=config)
-
-    app.config["CONFIG"] = config
-
-    signal.signal(signal.SIGTERM, sig_handler)
-
     try:
+        config = Config.load(pathlib.Path(config_file), db.CONFIG_SCHEMA_PATH)
+
+        webapp_config = my_lib.webapp.config.WebappConfig.parse({
+            "static_dir_path": config.webapp.static_dir_path,
+        })
+
+        app = create_app(webapp_config, config=config)
+
+        app.config["CONFIG"] = config
+
+        signal.signal(signal.SIGTERM, sig_handler)
+
         app.run(host="0.0.0.0", port=port, debug=debug_mode)  # noqa: S104
     except KeyboardInterrupt:
         logging.info("Received KeyboardInterrupt, shutting down...")
         sig_handler(signal.SIGINT, None)
+    except Exception:
+        logging.exception("Fatal error during application startup")
+        traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
