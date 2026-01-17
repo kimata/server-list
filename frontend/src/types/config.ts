@@ -20,7 +20,8 @@ export interface Machine {
   mode: string;
   cpu: string;
   ram: string;
-  storage: Storage[] | 'zfs';
+  storage?: Storage[];
+  filesystem?: string[];  // e.g., ['zfs']
   os: string;
   vm?: VirtualMachine[];
   esxi?: string;

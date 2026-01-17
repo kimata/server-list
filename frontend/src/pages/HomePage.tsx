@@ -63,7 +63,11 @@ export function HomePage() {
         }
         return response.json();
       })
-      .then((data: Config) => {
+      .then((response: { success: boolean; data?: Config; error?: string }) => {
+        if (!response.success || !response.data) {
+          throw new Error(response.error || 'Failed to load config');
+        }
+        const data = response.data;
         setConfig(data);
         setLoading(false);
 

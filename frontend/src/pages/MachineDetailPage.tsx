@@ -76,7 +76,11 @@ export function MachineDetailPage() {
           throw new Error('Failed to load config');
         }
 
-        const configData: Config = await configResponse.json();
+        const response: { success: boolean; data?: Config; error?: string } = await configResponse.json();
+        if (!response.success || !response.data) {
+          throw new Error(response.error || 'Failed to load config');
+        }
+        const configData = response.data;
         setConfig(configData);
         const decodedName = decodeURIComponent(machineName || '');
         const foundMachine = configData.machine.find((m) => m.name === decodedName);
@@ -288,7 +292,7 @@ export function MachineDetailPage() {
                     />
                   </div>
 
-                  {machine.storage !== 'zfs' && (
+                  {!machine.filesystem?.includes('zfs') && (
                     <div className="spec-item">
                       <PerformanceBar
                         label="総ストレージ容量"
@@ -379,7 +383,7 @@ export function MachineDetailPage() {
               )}
 
               {/* ZFSプール */}
-              {machine.storage === 'zfs' && (
+              {machine.filesystem?.includes('zfs') && (
                 <div className="bg-white rounded-lg shadow p-6">
                   <ZfsStorageInfo hostName={machine.name} />
                 </div>
@@ -398,7 +402,7 @@ export function MachineDetailPage() {
             {/* デスクトップ: 右カラム下部 (col-3, row-2) */}
             <div className="order-3 lg:col-start-3 lg:row-start-2 space-y-6">
               {/* ストレージ */}
-              {machine.storage !== 'zfs' && (
+              {!machine.filesystem?.includes('zfs') && machine.storage && machine.storage.length > 0 && (
                 <div className="bg-white rounded-lg shadow p-6">
                   <StorageInfo storage={machine.storage} />
                 </div>

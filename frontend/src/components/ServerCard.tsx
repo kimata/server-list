@@ -125,7 +125,7 @@ export function ServerCard({
                 />
               </div>
 
-              {machine.storage !== 'zfs' && (
+              {!machine.filesystem?.includes('zfs') && (
                 <div className="spec-item mb-3">
                   <PerformanceBar
                     label="総ストレージ容量"
@@ -190,11 +190,11 @@ export function ServerCard({
         )}
 
         {/* ZFS Pool or Storage */}
-        {machine.storage === 'zfs' ? (
+        {machine.filesystem?.includes('zfs') ? (
           <ZfsStorageInfo hostName={machine.name} />
-        ) : (
+        ) : machine.storage && machine.storage.length > 0 ? (
           <StorageInfo storage={machine.storage} />
-        )}
+        ) : null}
       </div>
     </div>
   );
