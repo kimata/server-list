@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 
 dependencies = [
-    "my-lib @ git+https://github.com/kimata/my-py-lib@f67a064d6eed3de8e7294fdd9590c28c41b0379f",
+    "my-lib @ git+https://github.com/kimata/my-py-lib@02f45329179fd6354204f61ba0d9720e8b5be72a",
     "flask>=3.0.0",
     "flask-cors>=4.0.0",
     "requests>=2.31.0",
@@ -110,6 +110,9 @@ module = [
 ]
 ignore_missing_imports = true
 follow_imports = "skip"
+
+[tool.ty]
+[tool.ty.rules]
 
 [build-system]
 requires = ["hatchling"]
