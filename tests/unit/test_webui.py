@@ -174,12 +174,18 @@ class TestBackgroundWorkers:
         webapp_config = my_lib.webapp.config.WebappConfig.parse(sample_config["webapp"])
 
         # WERKZEUG_RUN_MAIN が設定されていない状態をテスト
-        env_without_werkzeug = {k: v for k, v in os.environ.items() if k != "WERKZEUG_RUN_MAIN"}
+        # os.environ.get をモックして、WERKZEUG_RUN_MAIN のみ None を返すようにする
+        original_get = os.environ.get
+
+        def mock_environ_get(key, default=None):
+            if key == "WERKZEUG_RUN_MAIN":
+                return None
+            return original_get(key, default)
 
         with (
             unittest.mock.patch("server_list.cli.webui.start_cache_worker") as mock_cache,
             unittest.mock.patch("server_list.cli.webui.start_collector") as mock_collector,
-            unittest.mock.patch.dict(os.environ, env_without_werkzeug, clear=True),
+            unittest.mock.patch.object(os.environ, "get", side_effect=mock_environ_get),
             unittest.mock.patch("atexit.register"),
         ):
             create_app(webapp_config)
