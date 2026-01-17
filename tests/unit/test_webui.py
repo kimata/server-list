@@ -144,16 +144,18 @@ class TestBackgroundWorkers:
 
     def test_workers_start_in_werkzeug_main(self, sample_config):
         """WERKZEUG_RUN_MAIN=true でワーカーが起動する"""
+        import os
+
         import my_lib.webapp.config
 
         from server_list.cli.webui import create_app
 
-        webapp_config = my_lib.webapp.config.WebappConfig.from_dict(sample_config["webapp"])
+        webapp_config = my_lib.webapp.config.WebappConfig.parse(sample_config["webapp"])
 
         with (
             unittest.mock.patch("server_list.cli.webui.start_cache_worker") as mock_cache,
             unittest.mock.patch("server_list.cli.webui.start_collector") as mock_collector,
-            unittest.mock.patch("os.environ.get", return_value="true"),
+            unittest.mock.patch.dict(os.environ, {"WERKZEUG_RUN_MAIN": "true"}),
             unittest.mock.patch("atexit.register"),
         ):
             create_app(webapp_config)
@@ -163,16 +165,21 @@ class TestBackgroundWorkers:
 
     def test_workers_start_in_non_debug_mode(self, sample_config):
         """WERKZEUG_RUN_MAIN が未設定でもワーカーが起動する（非デバッグモード用）"""
+        import os
+
         import my_lib.webapp.config
 
         from server_list.cli.webui import create_app
 
-        webapp_config = my_lib.webapp.config.WebappConfig.from_dict(sample_config["webapp"])
+        webapp_config = my_lib.webapp.config.WebappConfig.parse(sample_config["webapp"])
+
+        # WERKZEUG_RUN_MAIN が設定されていない状態をテスト
+        env_without_werkzeug = {k: v for k, v in os.environ.items() if k != "WERKZEUG_RUN_MAIN"}
 
         with (
             unittest.mock.patch("server_list.cli.webui.start_cache_worker") as mock_cache,
             unittest.mock.patch("server_list.cli.webui.start_collector") as mock_collector,
-            unittest.mock.patch("os.environ.get", return_value=None),
+            unittest.mock.patch.dict(os.environ, env_without_werkzeug, clear=True),
             unittest.mock.patch("atexit.register"),
         ):
             create_app(webapp_config)

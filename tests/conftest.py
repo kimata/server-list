@@ -95,13 +95,13 @@ def flask_app(sample_config):
 
     from server_list.cli.webui import create_app
 
-    webapp_config = my_lib.webapp.config.WebappConfig.from_dict(sample_config["webapp"])
+    webapp_config = my_lib.webapp.config.WebappConfig.parse(sample_config["webapp"])
 
     # バックグラウンドワーカーを起動しないようにモック
     with (
         unittest.mock.patch("server_list.cli.webui.start_cache_worker"),
         unittest.mock.patch("server_list.cli.webui.start_collector"),
-        unittest.mock.patch("os.environ.get", return_value=None),
+        unittest.mock.patch("atexit.register"),
     ):
         app = create_app(webapp_config)
         app.config["TESTING"] = True

@@ -177,7 +177,7 @@ def main() -> None:
 
     config = Config.load(pathlib.Path(config_file), pathlib.Path("schema/config.schema"))
 
-    webapp_config = my_lib.webapp.config.WebappConfig.from_dict({
+    webapp_config = my_lib.webapp.config.WebappConfig.parse({
         "static_dir_path": config.webapp.static_dir_path,
     })
 
