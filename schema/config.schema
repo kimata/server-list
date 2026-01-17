@@ -77,34 +77,34 @@
                         "description": "Operating system (ESXi, Linux, Windows)"
                     },
                     "storage": {
-                        "oneOf": [
-                            {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "name": {
-                                            "type": "string",
-                                            "description": "Storage device name"
-                                        },
-                                        "model": {
-                                            "type": "string",
-                                            "description": "Storage device model number"
-                                        },
-                                        "volume": {
-                                            "type": "string",
-                                            "description": "Storage capacity"
-                                        }
-                                    },
-                                    "required": ["name", "model", "volume"]
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Storage device name"
+                                },
+                                "model": {
+                                    "type": "string",
+                                    "description": "Storage device model number"
+                                },
+                                "volume": {
+                                    "type": "string",
+                                    "description": "Storage capacity"
                                 }
                             },
-                            {
-                                "type": "string",
-                                "enum": ["zfs"],
-                                "description": "ZFS storage type (data fetched from Prometheus)"
-                            }
-                        ]
+                            "required": ["name", "model", "volume"]
+                        },
+                        "description": "Physical storage devices"
+                    },
+                    "filesystem": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": ["zfs"]
+                        },
+                        "description": "Filesystem types to collect data from Prometheus (e.g., ['zfs'])"
                     },
                     "esxi": {
                         "type": "string",
