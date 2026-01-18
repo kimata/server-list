@@ -8,7 +8,7 @@ import unittest.mock
 from datetime import UTC, datetime
 from pathlib import Path
 
-from server_list.spec import db_config
+from server_list.spec import db, db_config
 
 
 class TestConnectToEsxi:
@@ -216,8 +216,8 @@ class TestCollectAllData:
         )
 
         with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
+            unittest.mock.patch.object(db, "DATA_DIR", temp_data_dir),
+            unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path),
             unittest.mock.patch.object(data_collector, "load_secret", return_value=sample_secret),
             unittest.mock.patch.object(data_collector, "connect_to_esxi", return_value=mock_si),
             unittest.mock.patch.object(data_collector, "fetch_vm_data", return_value=vm_data),
@@ -256,8 +256,8 @@ class TestCollectAllData:
         db_config.set_server_data_db_path(db_path)
 
         with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
+            unittest.mock.patch.object(db, "DATA_DIR", temp_data_dir),
+            unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path),
             unittest.mock.patch.object(data_collector, "load_secret", return_value=sample_secret),
             unittest.mock.patch.object(data_collector, "connect_to_esxi", return_value=None),
             unittest.mock.patch.object(data_collector, "collect_ilo_power_data"),
@@ -281,8 +281,8 @@ class TestUpdateCollectionStatus:
         db_config.set_server_data_db_path(db_path)
 
         with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
+            unittest.mock.patch.object(db, "DATA_DIR", temp_data_dir),
+            unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path),
         ):
             data_collector.init_db()
             data_collector.update_collection_status("test-host", "success")
@@ -306,7 +306,7 @@ class TestLoadConfig:
         """ファイルが存在しない場合は空の辞書を返す"""
         from server_list.spec import data_collector
 
-        with unittest.mock.patch.object(data_collector, "BASE_DIR", temp_data_dir):
+        with unittest.mock.patch.object(db, "BASE_DIR", temp_data_dir):
             result = data_collector.load_config()
 
         assert result == {}

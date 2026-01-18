@@ -10,7 +10,7 @@ Flask アプリケーションの API エンドポイントをテストします
 import unittest.mock
 from pathlib import Path
 
-from server_list.spec import db_config
+from server_list.spec import db, db_config
 from server_list.spec.models import HostInfo, VMInfo
 
 
@@ -29,15 +29,13 @@ class TestConfigApiIntegration:
         config_path.write_text(yaml.dump(sample_config))
 
         db_config.set_cache_db_path(db_path)
+        db_config.set_config_path(config_path)
 
-        with (
-            unittest.mock.patch.object(cache_manager, "CONFIG_PATH", config_path),
-            unittest.mock.patch.object(
-                data_collector, "get_all_vm_info_for_host", return_value=[]
-            ),
+        with unittest.mock.patch.object(
+            data_collector, "get_all_vm_info_for_host", return_value=[]
         ):
             cache_manager.init_db()
-            cache_manager.set_cache("config", sample_config)
+            cache_manager._set_cache("config", sample_config)
 
             response = client.get("/server-list/api/config")
 
@@ -113,7 +111,7 @@ class TestVmApiIntegration:
             )
         ]
 
-        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
             data_collector.save_vm_data("esxi-01", vms)
 
@@ -152,7 +150,7 @@ class TestVmApiIntegration:
             ),
         ]
 
-        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
             data_collector.save_vm_data("esxi-01", vms)
 
@@ -161,8 +159,8 @@ class TestVmApiIntegration:
             assert response.status_code == 200
             data = response.get_json()
             assert data["success"] is True
-            assert data["esxi_host"] == "esxi-01"
-            assert len(data["vms"]) == 2
+            assert data["data"]["esxi_host"] == "esxi-01"
+            assert len(data["data"]["vms"]) == 2
 
 
 class TestUptimeApiIntegration:
@@ -185,7 +183,7 @@ class TestUptimeApiIntegration:
             cpu_cores=8,
         )
 
-        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
             data_collector.save_host_info(host_info)
 
@@ -222,7 +220,7 @@ class TestUptimeApiIntegration:
             cpu_cores=4,
         )
 
-        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
             data_collector.save_host_info(host_info_1)
             data_collector.save_host_info(host_info_2)

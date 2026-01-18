@@ -24,18 +24,33 @@ class VMInfo:
     collected_at: str | None = None
 
     @classmethod
-    def parse(cls, data: dict) -> "VMInfo":
-        """Create VMInfo from dictionary."""
+    def parse_row(cls, row: tuple, esxi_host: str) -> "VMInfo":
+        """Create VMInfo from DB row (without esxi_host column)."""
         return cls(
-            esxi_host=data["esxi_host"],
-            vm_name=data["vm_name"],
-            cpu_count=data.get("cpu_count"),
-            ram_mb=data.get("ram_mb"),
-            storage_gb=data.get("storage_gb"),
-            power_state=data.get("power_state"),
-            cpu_usage_mhz=data.get("cpu_usage_mhz"),
-            memory_usage_mb=data.get("memory_usage_mb"),
-            collected_at=data.get("collected_at"),
+            esxi_host=esxi_host,
+            vm_name=row[0],
+            cpu_count=row[1],
+            ram_mb=row[2],
+            storage_gb=round(row[3], 1) if row[3] else None,
+            power_state=row[4],
+            cpu_usage_mhz=row[5],
+            memory_usage_mb=row[6],
+            collected_at=row[7],
+        )
+
+    @classmethod
+    def parse_row_full(cls, row: tuple) -> "VMInfo":
+        """Create VMInfo from DB row (with esxi_host column)."""
+        return cls(
+            vm_name=row[0],
+            cpu_count=row[1],
+            ram_mb=row[2],
+            storage_gb=round(row[3], 1) if row[3] else None,
+            power_state=row[4],
+            esxi_host=row[5],
+            cpu_usage_mhz=row[6],
+            memory_usage_mb=row[7],
+            collected_at=row[8],
         )
 
 
@@ -57,21 +72,21 @@ class HostInfo:
     collected_at: str | None = None
 
     @classmethod
-    def parse(cls, data: dict) -> "HostInfo":
-        """Create HostInfo from dictionary."""
+    def parse_row(cls, row: tuple) -> "HostInfo":
+        """Create HostInfo from DB row."""
         return cls(
-            host=data["host"],
-            boot_time=data.get("boot_time"),
-            uptime_seconds=data.get("uptime_seconds"),
-            status=data.get("status", "unknown"),
-            cpu_threads=data.get("cpu_threads"),
-            cpu_cores=data.get("cpu_cores"),
-            os_version=data.get("os_version"),
-            cpu_usage_percent=data.get("cpu_usage_percent"),
-            memory_usage_percent=data.get("memory_usage_percent"),
-            memory_total_bytes=data.get("memory_total_bytes"),
-            memory_used_bytes=data.get("memory_used_bytes"),
-            collected_at=data.get("collected_at"),
+            host=row[0],
+            boot_time=row[1],
+            uptime_seconds=row[2],
+            status=row[3],
+            cpu_threads=row[4],
+            cpu_cores=row[5],
+            os_version=row[6],
+            cpu_usage_percent=row[7],
+            memory_usage_percent=row[8],
+            memory_total_bytes=row[9],
+            memory_used_bytes=row[10],
+            collected_at=row[11],
         )
 
 
@@ -86,14 +101,28 @@ class PowerInfo:
     collected_at: str | None = None
 
     @classmethod
-    def parse(cls, data: dict) -> "PowerInfo":
-        """Create PowerInfo from dictionary."""
+    def parse_row(cls, row: tuple) -> "PowerInfo":
+        """Create PowerInfo from DB row (without host column)."""
         return cls(
-            power_watts=data.get("power_watts"),
-            power_average_watts=data.get("power_average_watts"),
-            power_max_watts=data.get("power_max_watts"),
-            power_min_watts=data.get("power_min_watts"),
-            collected_at=data.get("collected_at"),
+            power_watts=row[0],
+            power_average_watts=row[1],
+            power_max_watts=row[2],
+            power_min_watts=row[3],
+            collected_at=row[4],
+        )
+
+    @classmethod
+    def parse_row_with_host(cls, row: tuple) -> tuple[str, "PowerInfo"]:
+        """Create (host, PowerInfo) tuple from DB row (with host column)."""
+        return (
+            row[0],
+            cls(
+                power_watts=row[1],
+                power_average_watts=row[2],
+                power_max_watts=row[3],
+                power_min_watts=row[4],
+                collected_at=row[5],
+            ),
         )
 
 
@@ -106,12 +135,12 @@ class CollectionStatus:
     status: str
 
     @classmethod
-    def parse(cls, data: dict) -> "CollectionStatus":
-        """Create CollectionStatus from dictionary."""
+    def parse_row(cls, row: tuple) -> "CollectionStatus":
+        """Create CollectionStatus from DB row."""
         return cls(
-            host=data["host"],
-            last_fetch=data.get("last_fetch"),
-            status=data.get("status", "unknown"),
+            host=row[0],
+            last_fetch=row[1],
+            status=row[2],
         )
 
 
@@ -127,15 +156,15 @@ class ZfsPoolInfo:
     collected_at: str | None = None
 
     @classmethod
-    def parse(cls, data: dict) -> "ZfsPoolInfo":
-        """Create ZfsPoolInfo from dictionary."""
+    def parse_row(cls, row: tuple) -> "ZfsPoolInfo":
+        """Create ZfsPoolInfo from DB row."""
         return cls(
-            pool_name=data.get("pool_name", data.get("pool", "unknown")),
-            size_bytes=data.get("size_bytes"),
-            allocated_bytes=data.get("allocated_bytes"),
-            free_bytes=data.get("free_bytes"),
-            health=data.get("health"),
-            collected_at=data.get("collected_at"),
+            pool_name=row[0],
+            size_bytes=row[1],
+            allocated_bytes=row[2],
+            free_bytes=row[3],
+            health=row[4],
+            collected_at=row[5],
         )
 
 
@@ -150,14 +179,14 @@ class MountInfo:
     collected_at: str | None = None
 
     @classmethod
-    def parse(cls, data: dict) -> "MountInfo":
-        """Create MountInfo from dictionary."""
+    def parse_row(cls, row: tuple) -> "MountInfo":
+        """Create MountInfo from DB row."""
         return cls(
-            mountpoint=data.get("mountpoint", ""),
-            size_bytes=data.get("size_bytes"),
-            avail_bytes=data.get("avail_bytes"),
-            used_bytes=data.get("used_bytes"),
-            collected_at=data.get("collected_at"),
+            mountpoint=row[0],
+            size_bytes=row[1],
+            avail_bytes=row[2],
+            used_bytes=row[3],
+            collected_at=row[4],
         )
 
 
@@ -169,15 +198,6 @@ class CPUBenchmark:
     multi_thread_score: int | None
     single_thread_score: int | None
 
-    @classmethod
-    def parse(cls, data: dict) -> "CPUBenchmark":
-        """Create CPUBenchmark from dictionary."""
-        return cls(
-            cpu_name=data["cpu_name"],
-            multi_thread_score=data.get("multi_thread_score"),
-            single_thread_score=data.get("single_thread_score"),
-        )
-
 
 @dataclass
 class UsageMetrics:
@@ -188,16 +208,6 @@ class UsageMetrics:
     memory_total_bytes: float | None = None
     memory_used_bytes: float | None = None
 
-    @classmethod
-    def parse(cls, data: dict) -> "UsageMetrics":
-        """Create UsageMetrics from dictionary."""
-        return cls(
-            cpu_usage_percent=data.get("cpu_usage_percent"),
-            memory_usage_percent=data.get("memory_usage_percent"),
-            memory_total_bytes=data.get("memory_total_bytes"),
-            memory_used_bytes=data.get("memory_used_bytes"),
-        )
-
 
 @dataclass
 class UptimeData:
@@ -207,15 +217,6 @@ class UptimeData:
     uptime_seconds: float
     status: str
 
-    @classmethod
-    def parse(cls, data: dict) -> "UptimeData":
-        """Create UptimeData from dictionary."""
-        return cls(
-            boot_time=data["boot_time"],
-            uptime_seconds=data["uptime_seconds"],
-            status=data.get("status", "running"),
-        )
-
 
 @dataclass
 class StorageMetrics:
@@ -224,12 +225,3 @@ class StorageMetrics:
     size_bytes: float
     avail_bytes: float
     used_bytes: float
-
-    @classmethod
-    def parse(cls, data: dict) -> "StorageMetrics":
-        """Create StorageMetrics from dictionary."""
-        return cls(
-            size_bytes=data["size_bytes"],
-            avail_bytes=data["avail_bytes"],
-            used_bytes=data["used_bytes"],
-        )

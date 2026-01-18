@@ -143,5 +143,5 @@ class TestVmsForHostApi:
         assert response.status_code == 200
         data = response.get_json()
         assert data["success"] is True
-        assert data["esxi_host"] == "test-server-1.example.com"
-        assert len(data["vms"]) == 2
+        assert data["data"]["esxi_host"] == "test-server-1.example.com"
+        assert len(data["data"]["vms"]) == 2

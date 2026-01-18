@@ -383,6 +383,23 @@ notify_event(...)
 - 型ヒント用のインポート（`from typing import TYPE_CHECKING`）
 - dataclass などのデコレータ（`from dataclasses import dataclass`）
 
+**プロジェクト内モジュールの場合:**
+
+プロジェクト内の長いモジュールパスは `as` でエイリアスを付けて使用する:
+
+```python
+# Good: エイリアスを使用
+import server_list.spec.models as models
+import server_list.spec.data_collector as data_collector
+
+vm = models.VMInfo(...)
+data_collector.get_vm_info(...)
+
+# Avoid: from import
+from server_list.spec.models import VMInfo, HostInfo
+from server_list.spec.data_collector import get_vm_info
+```
+
 ### 型チェック（pyright）
 
 pyright のエラー対策として、各行に `# type: ignore` コメントを付けて回避するのは**最後の手段**とします。
@@ -424,9 +441,10 @@ si = SmartConnect(...)  # type: ignore[no-untyped-call]
 ### データ構造の定義
 
 - API レスポンスや内部データ構造には dataclass を使用
-- dict から dataclass を生成する `parse()` クラスメソッドを実装
+- DB 行から dataclass を生成する `parse_row()` クラスメソッドを実装
 - JSON シリアライズには `dataclasses.asdict()` を使用
 - TypedDict は使用しない（dataclass を優先）
+- **dict から dataclass を生成する `parse()` メソッドは実装しない**（未使用コードになりやすい）
 
 ```python
 from dataclasses import dataclass, asdict
@@ -439,17 +457,23 @@ class VMInfo:
     ram_mb: int | None = None
 
     @classmethod
-    def parse(cls, data: dict) -> "VMInfo":
+    def parse_row(cls, row: tuple, esxi_host: str) -> "VMInfo":
+        """DB行から VMInfo を生成."""
         return cls(
-            esxi_host=data["esxi_host"],
-            vm_name=data["vm_name"],
-            cpu_count=data.get("cpu_count"),
-            ram_mb=data.get("ram_mb"),
+            esxi_host=esxi_host,
+            vm_name=row[0],
+            cpu_count=row[1],
+            ram_mb=row[2],
         )
 
 # API レスポンスでの使用
 return flask.jsonify({"success": True, "data": asdict(vm_info)})
 ```
+
+**`parse_row()` パターン:**
+- DB 行（tuple）から dataclass を生成する場合は `parse_row()` クラスメソッドを使用
+- 行変換ロジックをデータ構造の定義と同じ場所に配置
+- data_collector.py 等の `_row_to_*()` ヘルパー関数は models.py の parse_row() に移行
 
 ### 例外ハンドリング
 
@@ -527,6 +551,29 @@ logging.warning("Failed to fetch data: %s", error)
 
 # Bad
 print(f"Starting data collection for {host}")
+```
+
+**ログレベルのガイドライン:**
+
+| ログレベル | 使用場面 |
+| ---------- | -------- |
+| `info` | 正常な処理の開始・完了、定期的な状態レポート |
+| `warning` | 外部接続失敗（ESXi, Prometheus, iLO）、リトライ可能なエラー |
+| `debug` | 内部パース失敗（予期される変換エラー）、詳細なデバッグ情報 |
+| `exception` | 致命的なエラー、スタックトレースが必要な場合 |
+
+```python
+# Good: 外部接続失敗は warning
+except requests.RequestException as e:
+    logging.warning("Prometheus query failed: %s", e)
+
+# Good: 予期される変換エラーは debug
+except (ValueError, TypeError) as e:
+    logging.debug("Prometheus metric parsing failed: %s", e)
+
+# Good: 致命的なエラーは exception
+except Exception:
+    logging.exception("Unexpected error in data collection")
 ```
 
 ### 後方互換性
@@ -607,21 +654,115 @@ def calculate_score(name: str) -> float:
 
 ### API レスポンス
 
-全エンドポイントで統一された形式を使用:
+全エンドポイントで統一された形式を使用。webapi エンドポイントでは `webapi` モジュールのヘルパー関数を使用する:
 
 ```python
-# 成功時
-return flask.jsonify({
-    "success": True,
-    "data": dataclasses.asdict(result),
+import server_list.spec.webapi as webapi
+
+# 成功時（単一データ）
+return webapi.success_response(dataclasses.asdict(result))
+
+# 成功時（リストや複合データ）
+return webapi.success_response({
+    "esxi_host": esxi_host,
+    "vms": [dataclasses.asdict(vm) for vm in vms],
 })
 
 # エラー時（適切な HTTP ステータスコードを返す）
-return flask.jsonify({
-    "success": False,
-    "error": "エラーメッセージ",
-}), 404  # or 400, 500, etc.
+return webapi.error_response("エラーメッセージ", 404)  # or 400, 500, etc.
 ```
+
+**ヘルパー関数を使用しない場合（特殊なケース）:**
+
+```python
+# 成功時（message フィールドを含む場合など）
+return flask.jsonify({
+    "success": True,
+    "message": f"Data collection completed for {esxi_host}",
+})
+```
+
+**重要:** 追加のメタデータ（`esxi_host` 等）は `data` オブジェクト内に含める。
+トップレベルには `success`, `data`, `error` のみを配置する。
+
+### 設定値アクセス
+
+設定ファイル（config.yaml）からの値取得には `my_lib.config.accessor` を使用する:
+
+```python
+# Good: accessor を使用
+cfg = my_lib.config.accessor(config)
+prometheus_url = cfg.get("prometheus", "url")
+instance_map = cfg.get_dict("prometheus", "instance_map")
+machines = cfg.get_list("machine")  # リストには get_list() を使用
+
+# Avoid: dict.get() のチェーン
+prometheus_url = config.get("prometheus", {}).get("url")
+
+# Avoid: 同じ関数内で accessor と dict.get() を混在
+cfg = my_lib.config.accessor(config)
+prometheus_url = cfg.get("prometheus", "url")  # accessor
+machines = config.get("machine", [])  # ← dict.get() は避ける
+```
+
+**重要:** 同一の関数・ファイル内では accessor を一貫して使用すること。accessor と dict.get() の混在は避ける。
+
+**メリット:**
+- キーが存在しない場合の安全な処理
+- ネストした設定値への簡潔なアクセス
+- 型安全なメソッド（`get_dict`, `get_list` など）
+
+### YAML 読み込み
+
+設定ファイル（config.yaml, secret.yaml）の読み込みには `my_lib.config.load()` を使用し、スキーマ検証を必ず実施する：
+
+```python
+# Good: スキーマ検証付きで読み込み
+config_path = db.BASE_DIR / "config.yaml"
+schema_path = db.BASE_DIR / "schema" / "config.schema"
+config = my_lib.config.load(config_path, schema_path)
+
+# Avoid: yaml.safe_load() で直接読み込み（スキーマ検証なし）
+with open(config_path, encoding="utf-8") as f:
+    config = yaml.safe_load(f)
+```
+
+**メリット:**
+- スキーマ検証による設定ミスの早期発見
+- 型変換の自動化
+- 一貫した読み込みパターン
+
+### パス管理
+
+ファイルパスは `db.py` で定義された定数を使用する：
+
+```python
+import server_list.spec.db as db
+
+# Good: db.py の定数を使用
+schema_path = db.CONFIG_SCHEMA_PATH
+data_db = db.SERVER_DATA_DB
+config_path = db.CONFIG_PATH
+
+# Avoid: インラインでパスを構築
+schema_path = config_path.parent / "schema" / "config.schema"
+```
+
+**db.py で定義されている主な定数:**
+
+| 定数 | 用途 |
+| --- | --- |
+| `BASE_DIR` | プロジェクトルート |
+| `CONFIG_SCHEMA_PATH` | config.yaml スキーマ |
+| `SECRET_SCHEMA_PATH` | secret.yaml スキーマ |
+| `SERVER_DATA_DB` | VM/ホスト情報 DB |
+| `CACHE_DB` | 設定キャッシュ DB |
+| `CPU_SPEC_DB` | CPU ベンチマーク DB |
+
+**メリット:**
+- パス定義の一元管理
+- テスト時のパス差し替えが容易
+- Docker/本番環境での柔軟な設定
 
 ### Prometheus 連携
 
@@ -653,18 +794,38 @@ def fetch_prometheus_windows_uptime(...) -> dict | None:
 - 複合データを返す関数は dataclass を使用（dict ではなく）
 - `dict | list | None` のような複数型の戻り値は避ける
 - キー別の専用 getter を提供して型を明確化
+- **リストを返す関数で失敗時は空リスト `[]` を返す**（`None` ではなく）
+  - 呼び出し元での None チェックが不要になる
+  - for ループで直接イテレーション可能
 
 ```python
 # Good: 専用 getter で型を明確化
 def get_config() -> dict | None:
     """config キャッシュを取得（型が明確）"""
-    result = get_cache("config")
-    return result if isinstance(result, dict) else None
+    cached = get_cache("config")
+    if cached:
+        return cached
+    return None
 
 # Avoid: 複数型の戻り値
 def get_cache(key: str) -> dict | list | None:
     """汎用 getter（型が不明確）"""
     ...
+
+# Good: リスト返却関数は失敗時に空リストを返す
+def fetch_items() -> list[Item]:
+    try:
+        return _fetch_from_api()
+    except requests.RequestException as e:
+        logging.warning("Failed to fetch items: %s", e)
+        return []  # None ではなく空リスト
+
+# Avoid: リスト返却関数で None を返す
+def fetch_items() -> list[Item] | None:
+    try:
+        return _fetch_from_api()
+    except requests.RequestException:
+        return None  # 呼び出し元で None チェックが必要になる
 ```
 
 ### Protocol の使用
@@ -745,9 +906,36 @@ def get_uptime_info(host: str) -> dict | None:
 
 ### 未使用コードの削除
 
-- **使用されていない Protocol / TypedDict / dataclass は削除する**
+- **使用されていない Protocol / TypedDict / dataclass / メソッドは削除する**
 - 「将来使うかもしれない」コードは保持しない（YAGNI 原則）
 - 削除時は grep で使用箇所がないことを確認
+- 特に `parse()` メソッドは未使用になりやすいので注意
+
+### isinstance チェックの使い分け
+
+- **型システムが保証する場合は isinstance 不要**
+- 外部ライブラリ（pyVmomi 等）では isinstance が必要な場合がある
+
+```python
+# Good: 型システムが保証している場合は isinstance 不要
+def get_config() -> dict | None:
+    cached = get_cache("config")  # get_cache() は dict | None を返す
+    if cached:  # None チェックのみで十分
+        return cached
+    return None
+
+# Avoid: 冗長な isinstance チェック
+def get_config() -> dict | None:
+    cached = get_cache("config")
+    if cached and isinstance(cached, dict):  # isinstance は冗長
+        return cached
+    return None
+
+# Good: 外部ライブラリで isinstance が必要な場合
+for device in vm.config.hardware.device:
+    if isinstance(device, vim.vm.device.VirtualDisk):  # pyVmomi は isinstance が必要
+        total_bytes += device.capacityInBytes
+```
 
 ### 後方互換性コードの扱い
 

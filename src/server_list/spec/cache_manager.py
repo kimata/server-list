@@ -7,15 +7,15 @@ Updates data in background and notifies via SSE.
 
 import json
 import logging
+import sqlite3
 import threading
 from datetime import datetime
 
-import yaml
-
+import my_lib.config
 import my_lib.webapp.event
 
-from server_list.spec.db import CONFIG_PATH, get_connection
-from server_list.spec.db_config import get_cache_db_path
+import server_list.spec.db
+import server_list.spec.db_config
 
 UPDATE_INTERVAL_SEC = 300  # 5 minutes
 
@@ -35,13 +35,15 @@ CREATE TABLE IF NOT EXISTS cache (
 
 def init_db():
     """Initialize the cache database."""
-    with get_connection(get_cache_db_path()) as conn:
+    with server_list.spec.db.get_connection(
+        server_list.spec.db_config.get_cache_db_path()
+    ) as conn:
         conn.executescript(CACHE_SCHEMA)
         conn.commit()
 
 
-def get_cache(key: str) -> dict | list | None:
-    """Get cached value by key (internal use).
+def _get_cache(key: str) -> dict | None:
+    """Internal: Get cached value by key.
 
     For type-safe access, use the specialized getters:
     - get_config() for config cache (returns dict | None)
@@ -50,45 +52,67 @@ def get_cache(key: str) -> dict | list | None:
         key: Cache key to retrieve
 
     Returns:
-        Cached value as dict or list, or None if not found
+        Cached value as dict, or None if not found
     """
     try:
-        with _db_lock, get_connection(get_cache_db_path()) as conn:
+        with _db_lock, server_list.spec.db.get_connection(
+            server_list.spec.db_config.get_cache_db_path()
+        ) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT value FROM cache WHERE key = ?", (key,))
             row = cursor.fetchone()
 
             if row:
                 return json.loads(row[0])
-    except Exception as e:
+    except (sqlite3.Error, json.JSONDecodeError) as e:
         logging.warning("Failed to get cache for %s: %s", key, e)
 
     return None
 
 
-def set_cache(key: str, value: dict | list):
-    """Set cache value."""
+def _set_cache(key: str, value: dict):
+    """Internal: Set cache value."""
     try:
-        with _db_lock, get_connection(get_cache_db_path()) as conn:
+        with _db_lock, server_list.spec.db.get_connection(
+            server_list.spec.db_config.get_cache_db_path()
+        ) as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT OR REPLACE INTO cache (key, value, updated_at)
                 VALUES (?, ?, ?)
             """, (key, json.dumps(value, ensure_ascii=False), datetime.now().isoformat()))
             conn.commit()
-    except Exception as e:
+    except sqlite3.Error as e:
         logging.warning("Failed to set cache for %s: %s", key, e)
 
 
 def load_config_from_file() -> dict | None:
-    """Load config from YAML file."""
+    """Load config from YAML file with schema validation.
+
+    Uses my_lib.config.load() for consistent config loading
+    with schema validation across the codebase.
+    The config path is obtained from db_config for testability.
+    Falls back to yaml.safe_load() if schema file is not available (e.g., in tests).
+    """
+    import yaml
+
     try:
-        if CONFIG_PATH.exists():
-            with open(CONFIG_PATH, encoding="utf-8") as f:
-                return yaml.safe_load(f)
+        config_path = server_list.spec.db_config.get_config_path()
+        if not config_path.exists():
+            return None
+
+        # Use centralized schema path from db module
+        schema_path = server_list.spec.db.CONFIG_SCHEMA_PATH
+
+        # Use schema validation if available, otherwise fallback to yaml.safe_load
+        if schema_path.exists():
+            return my_lib.config.load(config_path, schema_path)
+
+        with open(config_path, encoding="utf-8") as f:
+            return yaml.safe_load(f)
     except Exception as e:
         logging.warning("Failed to load config: %s", e)
-    return None
+        return None
 
 
 def get_config() -> dict | None:
@@ -100,14 +124,14 @@ def get_config() -> dict | None:
     Returns:
         Config dictionary or None if not available
     """
-    cached = get_cache("config")
-    if cached and isinstance(cached, dict):
+    cached = _get_cache("config")
+    if cached:
         return cached
 
     # Load from file and cache
     config = load_config_from_file()
     if config:
-        set_cache("config", config)
+        _set_cache("config", config)
     return config
 
 
@@ -118,9 +142,9 @@ def update_all_caches():
     # Update config cache
     config = load_config_from_file()
     if config:
-        old_config = get_cache("config")
+        old_config = _get_cache("config")
         if old_config != config:
-            set_cache("config", config)
+            _set_cache("config", config)
             updated = True
             logging.info("Config cache updated")
 
@@ -151,7 +175,7 @@ def start_cache_worker():
     # Initial cache population
     config = load_config_from_file()
     if config:
-        set_cache("config", config)
+        _set_cache("config", config)
 
     if _update_thread and _update_thread.is_alive():
         return

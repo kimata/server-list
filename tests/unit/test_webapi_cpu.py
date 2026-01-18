@@ -30,7 +30,7 @@ class TestCpuBenchmarkApi:
         data = response.get_json()
         assert data["success"] is True
         assert data["data"]["multi_thread_score"] == 30000
-        assert data["source"] == "cache"
+        assert data["data"]["source"] == "cache"
 
     def test_get_benchmark_missing_cpu_param(self, client):
         """CPU パラメータがない場合に400を返す"""
@@ -72,7 +72,7 @@ class TestCpuBenchmarkApi:
         assert response.status_code == 200
         data = response.get_json()
         assert data["success"] is True
-        assert data["source"] == "web"
+        assert data["data"]["source"] == "web"
 
 
 class TestCpuBenchmarkBatchApi:

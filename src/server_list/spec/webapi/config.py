@@ -11,6 +11,7 @@ import flask
 
 import server_list.spec.cache_manager as cache_manager
 import server_list.spec.data_collector as data_collector
+import server_list.spec.webapi as webapi
 
 config_api = flask.Blueprint("config_api", __name__)
 
@@ -76,12 +77,6 @@ def get_config_api():
     if config:
         # Enrich config with VM data from ESXi
         enriched_config = enrich_config_with_vm_data(config)
-        return flask.jsonify({
-            "success": True,
-            "data": enriched_config,
-        })
+        return webapi.success_response(enriched_config)
 
-    return flask.jsonify({
-        "success": False,
-        "error": "Config not available",
-    }), 503
+    return webapi.error_response("Config not available", 503)

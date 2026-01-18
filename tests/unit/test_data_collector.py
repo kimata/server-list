@@ -8,7 +8,7 @@ import sqlite3
 import unittest.mock
 from pathlib import Path
 
-from server_list.spec import db_config
+from server_list.spec import db, db_config
 
 
 class TestInitDb:
@@ -22,7 +22,7 @@ class TestInitDb:
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
         db_config.set_server_data_db_path(db_path)
 
-        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
 
         # テーブルが作成されていることを確認
@@ -44,7 +44,7 @@ class TestLoadSecret:
         """ファイルが存在しない場合は空の辞書を返す"""
         from server_list.spec import data_collector
 
-        with unittest.mock.patch.object(data_collector, "BASE_DIR", temp_data_dir):
+        with unittest.mock.patch.object(db, "BASE_DIR", temp_data_dir):
             result = data_collector.load_secret()
 
         assert result == {}
@@ -53,10 +53,12 @@ class TestLoadSecret:
         """シークレットファイルを正しく読み込む"""
         from server_list.spec import data_collector
 
+        # BASE_DIR をモックして secret.yaml のパスを変更
+        secret_path = temp_data_dir / "secret.yaml"
+        secret_path.write_text("esxi_auth: {}")
         with (
-            unittest.mock.patch.object(data_collector, "BASE_DIR", temp_data_dir),
+            unittest.mock.patch.object(db, "BASE_DIR", temp_data_dir),
             unittest.mock.patch("my_lib.config.load", return_value=sample_secret),
-            unittest.mock.patch.object(Path, "exists", return_value=True),
         ):
             result = data_collector.load_secret()
 
@@ -75,7 +77,7 @@ class TestSaveAndGetVmData:
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
         db_config.set_server_data_db_path(db_path)
 
-        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
 
             vm_data = [
@@ -107,7 +109,7 @@ class TestSaveAndGetVmData:
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
         db_config.set_server_data_db_path(db_path)
 
-        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
 
             vm_data = [
@@ -149,7 +151,7 @@ class TestSaveAndGetHostInfo:
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
         db_config.set_server_data_db_path(db_path)
 
-        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
 
             host_info = HostInfo(
@@ -178,7 +180,7 @@ class TestSaveAndGetHostInfo:
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
         db_config.set_server_data_db_path(db_path)
 
-        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
 
             data_collector.save_host_info_failed("test-host")
@@ -198,7 +200,7 @@ class TestSaveAndGetHostInfo:
         schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
         db_config.set_server_data_db_path(db_path)
 
-        with unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path):
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
             data_collector.init_db()
 
             for i in range(3):
@@ -232,7 +234,7 @@ class TestCollectorStartStop:
         db_config.set_server_data_db_path(db_path)
 
         with (
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
+            unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path),
             unittest.mock.patch.object(data_collector, "collect_all_data"),
             unittest.mock.patch.object(data_collector, "UPDATE_INTERVAL_SEC", 0.1),
         ):

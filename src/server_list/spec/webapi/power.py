@@ -9,6 +9,7 @@ import dataclasses
 import flask
 
 import server_list.spec.data_collector as data_collector
+import server_list.spec.webapi as webapi
 
 power_api = flask.Blueprint("power_api", __name__)
 
@@ -21,10 +22,7 @@ def get_all_power():
     # Convert PowerInfo dataclass to dict for JSON serialization
     data = {host: dataclasses.asdict(info) for host, info in power_info_map.items()}
 
-    return flask.jsonify({
-        "success": True,
-        "data": data,
-    })
+    return webapi.success_response(data)
 
 
 @power_api.route("/power/<host>", methods=["GET"])
@@ -33,12 +31,6 @@ def get_host_power(host: str):
     info = data_collector.get_power_info(host)
 
     if info:
-        return flask.jsonify({
-            "success": True,
-            "data": dataclasses.asdict(info),
-        })
+        return webapi.success_response(dataclasses.asdict(info))
 
-    return flask.jsonify({
-        "success": False,
-        "error": f"No power data for host: {host}",
-    }), 404
+    return webapi.error_response(f"No power data for host: {host}")

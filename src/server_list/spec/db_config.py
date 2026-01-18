@@ -18,7 +18,7 @@ Example usage:
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from server_list.spec.db import CACHE_DB, CPU_SPEC_DB, SERVER_DATA_DB
+from server_list.spec.db import CACHE_DB, CONFIG_PATH, CPU_SPEC_DB, SERVER_DATA_DB
 
 
 @dataclass
@@ -31,6 +31,7 @@ class _DbPaths:
     server_data: Path = field(default_factory=lambda: SERVER_DATA_DB)
     cpu_spec: Path = field(default_factory=lambda: CPU_SPEC_DB)
     cache: Path = field(default_factory=lambda: CACHE_DB)
+    config: Path = field(default_factory=lambda: CONFIG_PATH)
 
 
 _paths = _DbPaths()
@@ -67,6 +68,17 @@ def get_cache_db_path() -> Path:
 def set_cache_db_path(path: Path) -> None:
     """Set the cache database path (for testing)."""
     _paths.cache = path
+
+
+# Config file path
+def get_config_path() -> Path:
+    """Get the config file path."""
+    return _paths.config
+
+
+def set_config_path(path: Path) -> None:
+    """Set the config file path (for testing)."""
+    _paths.config = path
 
 
 def reset_all_paths() -> None:

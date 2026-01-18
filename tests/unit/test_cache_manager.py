@@ -44,9 +44,9 @@ class TestCacheOperations:
         cache_manager.init_db()
 
         test_data = {"key1": "value1", "key2": 123}
-        cache_manager.set_cache("test_key", test_data)
+        cache_manager._set_cache("test_key", test_data)
 
-        result = cache_manager.get_cache("test_key")
+        result = cache_manager._get_cache("test_key")
 
         assert result == test_data
 
@@ -59,7 +59,7 @@ class TestCacheOperations:
 
         cache_manager.init_db()
 
-        result = cache_manager.get_cache("nonexistent_key")
+        result = cache_manager._get_cache("nonexistent_key")
 
         assert result is None
 
@@ -72,10 +72,10 @@ class TestCacheOperations:
 
         cache_manager.init_db()
 
-        cache_manager.set_cache("test_key", {"old": "value"})
-        cache_manager.set_cache("test_key", {"new": "value"})
+        cache_manager._set_cache("test_key", {"old": "value"})
+        cache_manager._set_cache("test_key", {"new": "value"})
 
-        result = cache_manager.get_cache("test_key")
+        result = cache_manager._get_cache("test_key")
 
         assert result == {"new": "value"}
 
@@ -89,9 +89,9 @@ class TestCacheOperations:
         cache_manager.init_db()
 
         test_list = [{"name": "item1"}, {"name": "item2"}]
-        cache_manager.set_cache("list_key", test_list)
+        cache_manager._set_cache("list_key", test_list)
 
-        result = cache_manager.get_cache("list_key")
+        result = cache_manager._get_cache("list_key")
 
         assert result == test_list
 
@@ -103,8 +103,8 @@ class TestLoadConfigFromFile:
         """ファイルが存在しない場合は None を返す"""
         from server_list.spec import cache_manager
 
-        with unittest.mock.patch.object(cache_manager, "CONFIG_PATH", temp_data_dir / "nonexistent.yaml"):
-            result = cache_manager.load_config_from_file()
+        db_config.set_config_path(temp_data_dir / "nonexistent.yaml")
+        result = cache_manager.load_config_from_file()
 
         assert result is None
 
@@ -120,7 +120,7 @@ class TestGetConfig:
         db_config.set_cache_db_path(db_path)
 
         cache_manager.init_db()
-        cache_manager.set_cache("config", sample_config)
+        cache_manager._set_cache("config", sample_config)
 
         result = cache_manager.get_config()
 

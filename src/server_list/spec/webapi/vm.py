@@ -9,12 +9,30 @@ import dataclasses
 import flask
 
 import server_list.spec.data_collector as data_collector
-from server_list.spec.models import VMInfo  # Used in type annotation
+import server_list.spec.models as models
+import server_list.spec.webapi as webapi
 
 vm_api = flask.Blueprint("vm_api", __name__)
 
 
-def apply_unknown_power_state_if_unreachable(vm_info: VMInfo | None) -> dict | None:
+def _vm_to_response(vm: models.VMInfo, host_reachable: bool) -> dict:
+    """VMInfo をAPIレスポンス用dictに変換.
+
+    Args:
+        vm: VMInfo dataclass
+        host_reachable: ESXi ホストへの到達可否
+
+    Returns:
+        API レスポンス用 dict (cached_power_state を含む)
+    """
+    result = dataclasses.asdict(vm)
+    result["cached_power_state"] = result.get("power_state")
+    if not host_reachable:
+        result["power_state"] = "unknown"
+    return result
+
+
+def apply_unknown_power_state_if_unreachable(vm_info: models.VMInfo) -> dict:
     """Apply 'unknown' power_state if the ESXi host is unreachable.
 
     When ESXi host cannot be contacted, we use cached data but
@@ -23,19 +41,11 @@ def apply_unknown_power_state_if_unreachable(vm_info: VMInfo | None) -> dict | N
     in cached_power_state for resource calculations.
 
     Converts VMInfo to dict for JSON serialization.
+
+    Note: 呼び出し元で vm_info の None チェックを行うこと。
     """
-    if vm_info is None:
-        return None
-
-    result = dataclasses.asdict(vm_info)
-    cached_power_state = result.get("power_state")
-    result["cached_power_state"] = cached_power_state
-
-    esxi_host = result.get("esxi_host")
-    if esxi_host and not data_collector.is_host_reachable(esxi_host):
-        result["power_state"] = "unknown"
-
-    return result
+    host_reachable = data_collector.is_host_reachable(vm_info.esxi_host)
+    return _vm_to_response(vm_info, host_reachable)
 
 
 @vm_api.route("/vm/info", methods=["GET"])
@@ -53,7 +63,7 @@ def get_vm_info_api():
     vm_name = flask.request.args.get("vm_name")
 
     if not vm_name:
-        return flask.jsonify({"success": False, "error": "vm_name is required"}), 400
+        return webapi.error_response("vm_name is required", 400)
 
     esxi_host = flask.request.args.get("esxi_host")
 
@@ -62,15 +72,9 @@ def get_vm_info_api():
     if result:
         # Apply unknown power_state if host is unreachable
         result_dict = apply_unknown_power_state_if_unreachable(result)
-        return flask.jsonify({
-            "success": True,
-            "data": result_dict
-        })
+        return webapi.success_response(result_dict)
 
-    return flask.jsonify({
-        "success": False,
-        "error": f"VM not found: {vm_name}"
-    }), 404
+    return webapi.error_response(f"VM not found: {vm_name}")
 
 
 @vm_api.route("/vm/info/batch", methods=["POST"])
@@ -88,7 +92,7 @@ def get_vm_info_batch():
     data = flask.request.get_json()
 
     if not data or "vms" not in data:
-        return flask.jsonify({"success": False, "error": "VM list is required"}), 400
+        return webapi.error_response("VM list is required", 400)
 
     vm_list = data["vms"]
     esxi_host = data.get("esxi_host")
@@ -124,23 +128,11 @@ def get_vms_for_host(esxi_host: str):
         JSON with list of VMs and their info
     """
     vms = data_collector.get_all_vm_info_for_host(esxi_host)
-
-    # Apply unknown power_state if host is unreachable
-    # Keep cached_power_state for resource calculations
     host_reachable = data_collector.is_host_reachable(esxi_host)
-    vms_result = [
-        {
-            **dataclasses.asdict(vm),
-            "cached_power_state": vm.power_state,
-            "power_state": vm.power_state if host_reachable else "unknown",
-        }
-        for vm in vms
-    ]
 
-    return flask.jsonify({
-        "success": True,
+    return webapi.success_response({
         "esxi_host": esxi_host,
-        "vms": vms_result
+        "vms": [_vm_to_response(vm, host_reachable) for vm in vms],
     })
 
 
@@ -164,7 +156,4 @@ def refresh_host_data(esxi_host: str):
             "message": f"Data collection completed for {esxi_host}",
         })
 
-    return flask.jsonify({
-        "success": False,
-        "error": f"Failed to collect data from {esxi_host}",
-    }), 500
+    return webapi.error_response(f"Failed to collect data from {esxi_host}", 500)

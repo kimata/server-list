@@ -9,6 +9,7 @@ import dataclasses
 import flask
 
 import server_list.spec.data_collector as data_collector
+import server_list.spec.webapi as webapi
 
 uptime_api = flask.Blueprint("uptime_api", __name__)
 
@@ -21,10 +22,7 @@ def get_all_uptime():
     # Convert HostInfo dataclass to dict for JSON serialization
     data = {host: dataclasses.asdict(info) for host, info in host_info_map.items()}
 
-    return flask.jsonify({
-        "success": True,
-        "data": data,
-    })
+    return webapi.success_response(data)
 
 
 @uptime_api.route("/uptime/<host>", methods=["GET"])
@@ -33,12 +31,6 @@ def get_host_uptime(host: str):
     info = data_collector.get_host_info(host)
 
     if info:
-        return flask.jsonify({
-            "success": True,
-            "data": dataclasses.asdict(info),
-        })
+        return webapi.success_response(dataclasses.asdict(info))
 
-    return flask.jsonify({
-        "success": False,
-        "error": f"No host data for: {host}",
-    }), 404
+    return webapi.error_response(f"No host data for: {host}")

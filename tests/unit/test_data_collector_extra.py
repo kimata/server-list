@@ -8,7 +8,7 @@ import sqlite3
 import unittest.mock
 from pathlib import Path
 
-from server_list.spec import db_config
+from server_list.spec import db, db_config
 
 
 class TestLoadSecretEdgeCases:
@@ -21,7 +21,7 @@ class TestLoadSecretEdgeCases:
         # 存在しないパスを指定して例外を発生させる
         nonexistent_path = temp_data_dir / "nonexistent"
 
-        with unittest.mock.patch.object(data_collector, "BASE_DIR", nonexistent_path):
+        with unittest.mock.patch.object(db, "BASE_DIR", nonexistent_path):
             result = data_collector.load_secret()
 
         assert result == {}
@@ -37,7 +37,7 @@ class TestLoadConfig:
         # 存在しないパスを指定して例外を発生させる
         nonexistent_path = temp_data_dir / "nonexistent"
 
-        with unittest.mock.patch.object(data_collector, "BASE_DIR", nonexistent_path):
+        with unittest.mock.patch.object(db, "BASE_DIR", nonexistent_path):
             result = data_collector.load_config()
 
         assert result == {}
@@ -67,8 +67,8 @@ class TestSaveVmData:
         ]
 
         with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
+            unittest.mock.patch.object(db, "DATA_DIR", temp_data_dir),
+            unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path),
         ):
             data_collector.init_db()
             data_collector.save_vm_data("test-host", vms)
@@ -106,8 +106,8 @@ class TestSaveHostInfo:
         )
 
         with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
+            unittest.mock.patch.object(db, "DATA_DIR", temp_data_dir),
+            unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path),
         ):
             data_collector.init_db()
             data_collector.save_host_info(host_info)
@@ -135,8 +135,8 @@ class TestSaveHostInfoFailed:
         db_config.set_server_data_db_path(db_path)
 
         with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
+            unittest.mock.patch.object(db, "DATA_DIR", temp_data_dir),
+            unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path),
         ):
             data_collector.init_db()
             data_collector.save_host_info_failed("test-host")
@@ -176,8 +176,8 @@ class TestGetAllVmInfoForHost:
         ]
 
         with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
+            unittest.mock.patch.object(db, "DATA_DIR", temp_data_dir),
+            unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path),
         ):
             data_collector.init_db()
             data_collector.save_vm_data("test-host", vms)
@@ -210,8 +210,8 @@ class TestGetHostInfo:
         )
 
         with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
+            unittest.mock.patch.object(db, "DATA_DIR", temp_data_dir),
+            unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path),
         ):
             data_collector.init_db()
             data_collector.save_host_info(host_info)
@@ -230,8 +230,8 @@ class TestGetHostInfo:
         db_config.set_server_data_db_path(db_path)
 
         with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
+            unittest.mock.patch.object(db, "DATA_DIR", temp_data_dir),
+            unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path),
         ):
             data_collector.init_db()
 
@@ -276,8 +276,8 @@ class TestCollectorWorker:
         db_config.set_server_data_db_path(db_path)
 
         with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
+            unittest.mock.patch.object(db, "DATA_DIR", temp_data_dir),
+            unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path),
             unittest.mock.patch.object(data_collector, "load_secret", return_value=sample_secret),
             unittest.mock.patch.object(data_collector, "connect_to_esxi", return_value=None),
             unittest.mock.patch.object(data_collector, "UPDATE_INTERVAL_SEC", 0.1),
@@ -304,8 +304,8 @@ class TestUpdateCollectionStatusException:
         db_config.set_server_data_db_path(db_path)
 
         with (
-            unittest.mock.patch.object(data_collector, "DATA_DIR", temp_data_dir),
-            unittest.mock.patch.object(data_collector, "SQLITE_SCHEMA_PATH", schema_path),
+            unittest.mock.patch.object(db, "DATA_DIR", temp_data_dir),
+            unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path),
         ):
             data_collector.init_db()
             data_collector.update_collection_status("test-host", "success")

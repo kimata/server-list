@@ -6,10 +6,12 @@ Runs periodically every 5 minutes.
 """
 
 import atexit
-import dataclasses
 import logging
+import sqlite3
 import ssl
 import threading
+from collections.abc import Generator
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Any
 
@@ -21,25 +23,9 @@ import my_lib.config
 import my_lib.safe_access
 import my_lib.webapp.event
 
-from server_list.spec.db import (
-    BASE_DIR,
-    DATA_DIR,
-    SQLITE_SCHEMA_PATH,
-    get_connection,
-    init_schema_from_file,
-)
-from server_list.spec.db_config import get_server_data_db_path
-from server_list.spec.models import (
-    CollectionStatus,
-    HostInfo,
-    MountInfo,
-    PowerInfo,
-    StorageMetrics,
-    UptimeData,
-    UsageMetrics,
-    VMInfo,
-    ZfsPoolInfo,
-)
+import server_list.spec.db as db
+import server_list.spec.db_config as db_config
+import server_list.spec.models as models
 
 UPDATE_INTERVAL_SEC = 300  # 5 minutes
 
@@ -48,35 +34,40 @@ _should_stop = threading.Event()
 _db_lock = threading.Lock()
 
 
+@contextmanager
+def _get_locked_connection() -> Generator[sqlite3.Connection, None, None]:
+    """ロック付きDB接続を取得するコンテキストマネージャ."""
+    with _db_lock, db.get_connection(db_config.get_server_data_db_path()) as conn:
+        yield conn
+
+
 def init_db():
     """Initialize the SQLite database using schema file."""
-    init_schema_from_file(get_server_data_db_path(), SQLITE_SCHEMA_PATH)
+    db.init_schema_from_file(db_config.get_server_data_db_path(), db.SQLITE_SCHEMA_PATH)
 
 
 def load_secret() -> dict:
     """Load secret.yaml containing ESXi credentials.
 
-    Constructs path from BASE_DIR to allow test mocking.
+    Constructs path from db.BASE_DIR to allow test mocking.
     """
-    secret_path = BASE_DIR / "secret.yaml"
+    secret_path = db.BASE_DIR / "secret.yaml"
     if not secret_path.exists():
         return {}
 
-    schema_path = BASE_DIR / "schema" / "secret.schema"
-    return my_lib.config.load(secret_path, schema_path)
+    return my_lib.config.load(secret_path, db.SECRET_SCHEMA_PATH)
 
 
 def load_config() -> dict:
     """Load config.yaml containing machine definitions.
 
-    Constructs path from BASE_DIR to allow test mocking.
+    Constructs path from db.BASE_DIR to allow test mocking.
     """
-    config_path = BASE_DIR / "config.yaml"
+    config_path = db.BASE_DIR / "config.yaml"
     if not config_path.exists():
         return {}
 
-    schema_path = BASE_DIR / "schema" / "config.schema"
-    return my_lib.config.load(config_path, schema_path)
+    return my_lib.config.load(config_path, db.CONFIG_SCHEMA_PATH)
 
 
 def connect_to_esxi(host: str, username: str, password: str, port: int = 443) -> Any | None:
@@ -109,14 +100,14 @@ def get_vm_storage_size(vm) -> float:
             if isinstance(device, vim.vm.device.VirtualDisk):
                 if device.capacityInBytes is not None:
                     total_bytes += device.capacityInBytes
-    except Exception:
+    except Exception as e:
         # pyVmomi attribute access can fail for various reasons
-        logging.debug("Failed to get storage size for VM")
+        logging.debug("Failed to get storage size for VM: %s", e)
 
     return total_bytes / (1024 ** 3)
 
 
-def fetch_vm_data(si, esxi_host: str) -> list[VMInfo]:
+def fetch_vm_data(si, esxi_host: str) -> list[models.VMInfo]:
     """Fetch VM data from ESXi."""
     content = si.RetrieveContent()
     container = content.rootFolder
@@ -127,7 +118,7 @@ def fetch_vm_data(si, esxi_host: str) -> list[VMInfo]:
         container, view_type, recursive
     )
 
-    vms: list[VMInfo] = []
+    vms: list[models.VMInfo] = []
     for vm in container_view.view:
         try:
             # Get CPU and memory usage from quickStats
@@ -138,7 +129,7 @@ def fetch_vm_data(si, esxi_host: str) -> list[VMInfo]:
                 cpu_usage_mhz = stats.overallCpuUsage
                 memory_usage_mb = stats.guestMemoryUsage
 
-            vm_info = VMInfo(
+            vm_info = models.VMInfo(
                 esxi_host=esxi_host,
                 vm_name=vm.name,
                 cpu_count=vm.config.hardware.numCPU if vm.config else None,
@@ -234,7 +225,7 @@ def _extract_os_version(host_system) -> str | None:
     return safe_host.config.product.fullName.value()
 
 
-def fetch_host_info(si, host: str) -> HostInfo | None:
+def fetch_host_info(si, host: str) -> models.HostInfo | None:
     """Fetch host info including uptime, CPU, memory usage, and ESXi version from ESXi host."""
     try:
         content = si.RetrieveContent()
@@ -266,7 +257,7 @@ def fetch_host_info(si, host: str) -> HostInfo | None:
                         )
                         os_version = _extract_os_version(host_system)
 
-                        return HostInfo(
+                        return models.HostInfo(
                             host=host,
                             boot_time=boot_time.isoformat(),
                             uptime_seconds=(datetime.now(boot_time.tzinfo) - boot_time).total_seconds(),
@@ -293,7 +284,7 @@ def fetch_host_info(si, host: str) -> HostInfo | None:
 # =============================================================================
 
 
-def fetch_ilo_power(host: str, username: str, password: str) -> PowerInfo | None:
+def fetch_ilo_power(host: str, username: str, password: str) -> models.PowerInfo | None:
     """Fetch power consumption data from HP iLO via Redfish API.
 
     Args:
@@ -337,7 +328,7 @@ def fetch_ilo_power(host: str, username: str, password: str) -> PowerInfo | None
         power_max = power_metrics.get("MaxConsumedWatts")
         power_min = power_metrics.get("MinConsumedWatts")
 
-        return PowerInfo(
+        return models.PowerInfo(
             power_watts=power_watts,
             power_average_watts=power_average,
             power_max_watts=power_max,
@@ -356,11 +347,11 @@ def fetch_ilo_power(host: str, username: str, password: str) -> PowerInfo | None
         return None
 
 
-def save_power_info(host: str, power_data: PowerInfo):
+def save_power_info(host: str, power_data: models.PowerInfo):
     """Save power consumption info to SQLite cache."""
     collected_at = datetime.now().isoformat()
 
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -379,9 +370,9 @@ def save_power_info(host: str, power_data: PowerInfo):
         conn.commit()
 
 
-def get_power_info(host: str) -> PowerInfo | None:
+def get_power_info(host: str) -> models.PowerInfo | None:
     """Get power consumption info from cache."""
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -391,22 +382,12 @@ def get_power_info(host: str) -> PowerInfo | None:
         """, (host,))
 
         row = cursor.fetchone()
-
-        if row:
-            return PowerInfo(
-                power_watts=row[0],
-                power_average_watts=row[1],
-                power_max_watts=row[2],
-                power_min_watts=row[3],
-                collected_at=row[4],
-            )
-
-    return None
+        return models.PowerInfo.parse_row(row) if row else None
 
 
-def get_all_power_info() -> dict[str, PowerInfo]:
+def get_all_power_info() -> dict[str, models.PowerInfo]:
     """Get all power consumption info from cache."""
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -414,18 +395,7 @@ def get_all_power_info() -> dict[str, PowerInfo]:
             FROM power_info
         """)
 
-        rows = cursor.fetchall()
-
-        return {
-            row[0]: PowerInfo(
-                power_watts=row[1],
-                power_average_watts=row[2],
-                power_max_watts=row[3],
-                power_min_watts=row[4],
-                collected_at=row[5],
-            )
-            for row in rows
-        }
+        return dict(models.PowerInfo.parse_row_with_host(row) for row in cursor.fetchall())
 
 
 def collect_ilo_power_data():
@@ -456,58 +426,8 @@ def collect_ilo_power_data():
 # =============================================================================
 
 
-def _execute_prometheus_query(prometheus_url: str, query: str) -> dict | None:
-    """Prometheus API 呼び出しの共通処理.
-
-    Args:
-        prometheus_url: Prometheus サーバー URL
-        query: PromQL クエリ
-
-    Returns:
-        最初の結果エントリ (dict)、または None (失敗時)
-    """
-    try:
-        response = requests.get(
-            f"{prometheus_url}/api/v1/query",
-            params={"query": query},
-            timeout=30,
-        )
-        response.raise_for_status()
-        data = response.json()
-
-        if data.get("status") != "success":
-            return None
-
-        results = data.get("data", {}).get("result", [])
-        return results[0] if results else None
-
-    except requests.RequestException as e:
-        logging.warning("Prometheus query failed: %s", e)
-        return None
-
-
-def _fetch_prometheus_metric(prometheus_url: str, query: str) -> float | None:
-    """Prometheus から単一メトリクスを取得する共通関数.
-
-    Args:
-        prometheus_url: Prometheus サーバー URL
-        query: PromQL クエリ
-
-    Returns:
-        メトリクス値 (float) または None (失敗時)
-    """
-    result = _execute_prometheus_query(prometheus_url, query)
-    if result:
-        try:
-            value = result.get("value", [None, None])[1]
-            return float(value) if value is not None else None
-        except (ValueError, TypeError, IndexError) as e:
-            logging.debug("Prometheus metric parsing failed: %s", e)
-    return None
-
-
-def _execute_prometheus_query_all(prometheus_url: str, query: str) -> list[dict]:
-    """Prometheus API 呼び出しで全結果を取得.
+def _prometheus_request(prometheus_url: str, query: str) -> list[dict]:
+    """Prometheus API への HTTP リクエスト共通処理.
 
     Args:
         prometheus_url: Prometheus サーバー URL
@@ -533,6 +453,40 @@ def _execute_prometheus_query_all(prometheus_url: str, query: str) -> list[dict]
     except requests.RequestException as e:
         logging.warning("Prometheus query failed: %s", e)
         return []
+
+
+def _execute_prometheus_query(prometheus_url: str, query: str) -> dict | None:
+    """Prometheus API 呼び出しで最初の結果を取得.
+
+    Args:
+        prometheus_url: Prometheus サーバー URL
+        query: PromQL クエリ
+
+    Returns:
+        最初の結果エントリ (dict)、または None (失敗時)
+    """
+    results = _prometheus_request(prometheus_url, query)
+    return results[0] if results else None
+
+
+def _fetch_prometheus_metric(prometheus_url: str, query: str) -> float | None:
+    """Prometheus から単一メトリクスを取得する共通関数.
+
+    Args:
+        prometheus_url: Prometheus サーバー URL
+        query: PromQL クエリ
+
+    Returns:
+        メトリクス値 (float) または None (失敗時)
+    """
+    result = _execute_prometheus_query(prometheus_url, query)
+    if result:
+        try:
+            value = result.get("value", [None, None])[1]
+            return float(value) if value is not None else None
+        except (ValueError, TypeError, IndexError) as e:
+            logging.debug("Prometheus metric parsing failed: %s", e)
+    return None
 
 
 def _fetch_prometheus_metric_with_timestamp(prometheus_url: str, query: str) -> tuple[float, float] | None:
@@ -563,7 +517,7 @@ def _fetch_prometheus_metric_with_timestamp(prometheus_url: str, query: str) -> 
 
 def fetch_prometheus_uptime(
     prometheus_url: str, instance: str, is_windows: bool = False
-) -> UptimeData | None:
+) -> models.UptimeData | None:
     """Fetch uptime data from Prometheus.
 
     Linux/Windows 共通の uptime 取得関数。
@@ -592,7 +546,7 @@ def fetch_prometheus_uptime(
     current_time, boot_time = result
     uptime_seconds = current_time - boot_time
 
-    return UptimeData(
+    return models.UptimeData(
         boot_time=datetime.fromtimestamp(boot_time).isoformat(),
         uptime_seconds=uptime_seconds,
         status="running",
@@ -601,7 +555,7 @@ def fetch_prometheus_uptime(
 
 def fetch_prometheus_usage(
     prometheus_url: str, instance: str, is_windows: bool = False
-) -> UsageMetrics | None:
+) -> models.UsageMetrics | None:
     """Fetch CPU and memory usage from Prometheus.
 
     Linux/Windows 共通の CPU/メモリ使用率取得関数。
@@ -656,7 +610,7 @@ def fetch_prometheus_usage(
     if all(v is None for v in [cpu_usage_percent, memory_usage_percent, memory_total_bytes, memory_used_bytes]):
         return None
 
-    return UsageMetrics(
+    return models.UsageMetrics(
         cpu_usage_percent=cpu_usage_percent,
         memory_usage_percent=memory_usage_percent,
         memory_total_bytes=memory_total_bytes,
@@ -708,7 +662,7 @@ def collect_prometheus_uptime_data() -> bool:
     instance_map = cfg.get_dict("prometheus", "instance_map")
 
     # Find machines without ESXi (servers that need Prometheus uptime)
-    machines = config.get("machine", [])
+    machines = cfg.get_list("machine")
     target_machines = [(m["name"], m.get("os", "")) for m in machines if not m.get("esxi")]
 
     if not target_machines:
@@ -726,7 +680,7 @@ def collect_prometheus_uptime_data() -> bool:
         usage_data = fetch_prometheus_usage(prometheus_url, instance, is_windows=is_windows)
 
         if uptime_data:
-            host_info = HostInfo(
+            host_info = models.HostInfo(
                 host=host,
                 boot_time=uptime_data.boot_time,
                 uptime_seconds=uptime_data.uptime_seconds,
@@ -754,7 +708,7 @@ def collect_prometheus_uptime_data() -> bool:
 # =============================================================================
 
 
-def fetch_prometheus_zfs_pools(prometheus_url: str, instance: str) -> list[ZfsPoolInfo] | None:
+def fetch_prometheus_zfs_pools(prometheus_url: str, instance: str) -> list[models.ZfsPoolInfo]:
     """Fetch ZFS pool data from Prometheus.
 
     Args:
@@ -762,14 +716,14 @@ def fetch_prometheus_zfs_pools(prometheus_url: str, instance: str) -> list[ZfsPo
         instance: Prometheus instance label
 
     Returns:
-        List of ZfsPoolInfo objects or None if failed
+        List of ZfsPoolInfo objects (empty list if no data)
     """
     metrics = ["zfs_pool_size_bytes", "zfs_pool_allocated_bytes", "zfs_pool_free_bytes", "zfs_pool_health"]
     pool_data: dict[str, dict[str, float | None]] = {}
 
     for metric in metrics:
         query = f'{metric}{{instance=~"{instance}.*"}}'
-        results = _execute_prometheus_query_all(prometheus_url, query)
+        results = _prometheus_request(prometheus_url, query)
 
         for result in results:
             pool_name = result.get("metric", {}).get("pool", "unknown")
@@ -787,10 +741,10 @@ def fetch_prometheus_zfs_pools(prometheus_url: str, instance: str) -> list[ZfsPo
                     logging.debug("ZFS metric value conversion failed: %s", e)
 
     if not pool_data:
-        return None
+        return []
 
     return [
-        ZfsPoolInfo(
+        models.ZfsPoolInfo(
             pool_name=name,
             size_bytes=data.get("size_bytes"),
             allocated_bytes=data.get("allocated_bytes"),
@@ -801,11 +755,11 @@ def fetch_prometheus_zfs_pools(prometheus_url: str, instance: str) -> list[ZfsPo
     ]
 
 
-def save_zfs_pool_info(host: str, pools: list[ZfsPoolInfo]):
+def save_zfs_pool_info(host: str, pools: list[models.ZfsPoolInfo]):
     """Save ZFS pool info to SQLite cache."""
     collected_at = datetime.now().isoformat()
 
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         # Delete existing pools for this host
@@ -830,9 +784,9 @@ def save_zfs_pool_info(host: str, pools: list[ZfsPoolInfo]):
         conn.commit()
 
 
-def get_zfs_pool_info(host: str) -> list[ZfsPoolInfo]:
+def get_zfs_pool_info(host: str) -> list[models.ZfsPoolInfo]:
     """Get ZFS pool info from cache."""
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -841,19 +795,7 @@ def get_zfs_pool_info(host: str) -> list[ZfsPoolInfo]:
             WHERE host = ?
         """, (host,))
 
-        rows = cursor.fetchall()
-
-        return [
-            ZfsPoolInfo(
-                pool_name=row[0],
-                size_bytes=row[1],
-                allocated_bytes=row[2],
-                free_bytes=row[3],
-                health=row[4],
-                collected_at=row[5],
-            )
-            for row in rows
-        ]
+        return [models.ZfsPoolInfo.parse_row(row) for row in cursor.fetchall()]
 
 
 def collect_prometheus_zfs_data() -> bool:
@@ -876,7 +818,7 @@ def collect_prometheus_zfs_data() -> bool:
     instance_map = cfg.get_dict("prometheus", "instance_map")
 
     # Find machines with filesystem: ['zfs']
-    machines = config.get("machine", [])
+    machines = cfg.get_list("machine")
     target_hosts = [m["name"] for m in machines if "zfs" in m.get("filesystem", [])]
 
     if not target_hosts:
@@ -921,7 +863,7 @@ def fetch_btrfs_uuid(prometheus_url: str, label: str) -> str | None:
     return None
 
 
-def fetch_btrfs_metrics(prometheus_url: str, uuid: str) -> StorageMetrics | None:
+def fetch_btrfs_metrics(prometheus_url: str, uuid: str) -> models.StorageMetrics | None:
     """Fetch btrfs size and used bytes from Prometheus.
 
     Args:
@@ -940,7 +882,7 @@ def fetch_btrfs_metrics(prometheus_url: str, uuid: str) -> StorageMetrics | None
     used_bytes = _fetch_prometheus_metric(prometheus_url, used_query)
 
     if size_bytes is not None and used_bytes is not None:
-        return StorageMetrics(
+        return models.StorageMetrics(
             size_bytes=size_bytes,
             avail_bytes=size_bytes - used_bytes,
             used_bytes=used_bytes,
@@ -951,7 +893,7 @@ def fetch_btrfs_metrics(prometheus_url: str, uuid: str) -> StorageMetrics | None
 
 def fetch_windows_disk_metrics(
     prometheus_url: str, volume: str, instance: str
-) -> StorageMetrics | None:
+) -> models.StorageMetrics | None:
     """Fetch Windows logical disk metrics from Prometheus.
 
     Uses windows_exporter metrics:
@@ -975,7 +917,7 @@ def fetch_windows_disk_metrics(
     avail_bytes = _fetch_prometheus_metric(prometheus_url, avail_query)
 
     if size_bytes is not None and avail_bytes is not None:
-        return StorageMetrics(
+        return models.StorageMetrics(
             size_bytes=size_bytes,
             avail_bytes=avail_bytes,
             used_bytes=size_bytes - avail_bytes,
@@ -984,7 +926,7 @@ def fetch_windows_disk_metrics(
     return None
 
 
-def _fetch_filesystem_mount_metrics(prometheus_url: str, label: str, path: str) -> StorageMetrics | None:
+def _fetch_filesystem_mount_metrics(prometheus_url: str, label: str, path: str) -> models.StorageMetrics | None:
     """node_filesystem_* メトリクスからマウント情報を取得.
 
     Args:
@@ -1002,7 +944,7 @@ def _fetch_filesystem_mount_metrics(prometheus_url: str, label: str, path: str) 
     avail_bytes = _fetch_prometheus_metric(prometheus_url, avail_query)
 
     if size_bytes is not None and avail_bytes is not None:
-        return StorageMetrics(
+        return models.StorageMetrics(
             size_bytes=size_bytes,
             avail_bytes=avail_bytes,
             used_bytes=size_bytes - avail_bytes,
@@ -1013,7 +955,7 @@ def _fetch_filesystem_mount_metrics(prometheus_url: str, label: str, path: str) 
 
 def _fetch_mount_for_config(
     prometheus_url: str, mount_config: dict, host: str, instance_map: dict
-) -> MountInfo | None:
+) -> models.MountInfo | None:
     """単一のマウント設定からマウント情報を取得.
 
     Args:
@@ -1032,7 +974,7 @@ def _fetch_mount_for_config(
     if not label:
         return None
 
-    storage_data: StorageMetrics | None = None
+    storage_data: models.StorageMetrics | None = None
 
     if mount_type == "btrfs":
         uuid = fetch_btrfs_uuid(prometheus_url, label)
@@ -1045,7 +987,7 @@ def _fetch_mount_for_config(
         storage_data = _fetch_filesystem_mount_metrics(prometheus_url, label, path)
 
     if storage_data:
-        return MountInfo(
+        return models.MountInfo(
             mountpoint=path,
             size_bytes=storage_data.size_bytes,
             avail_bytes=storage_data.avail_bytes,
@@ -1057,7 +999,7 @@ def _fetch_mount_for_config(
 
 def fetch_prometheus_mount_info(
     prometheus_url: str, mount_configs: list[dict], host: str, instance_map: dict
-) -> list[MountInfo] | None:
+) -> list[models.MountInfo]:
     """Fetch mount point data from Prometheus.
 
     Supports filesystem (node_filesystem_*), btrfs (node_btrfs_*),
@@ -1070,23 +1012,23 @@ def fetch_prometheus_mount_info(
         instance_map: Optional mapping of host -> instance
 
     Returns:
-        List of MountInfo or None if no data collected
+        List of MountInfo (empty list if no data collected)
     """
-    mount_data: list[MountInfo] = []
+    mount_data: list[models.MountInfo] = []
 
     for mount_config in mount_configs:
         result = _fetch_mount_for_config(prometheus_url, mount_config, host, instance_map)
         if result:
             mount_data.append(result)
 
-    return mount_data if mount_data else None
+    return mount_data
 
 
-def save_mount_info(host: str, mounts: list[MountInfo]):
+def save_mount_info(host: str, mounts: list[models.MountInfo]):
     """Save mount info to SQLite cache."""
     collected_at = datetime.now().isoformat()
 
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         # Delete existing mounts for this host
@@ -1110,9 +1052,9 @@ def save_mount_info(host: str, mounts: list[MountInfo]):
         conn.commit()
 
 
-def get_mount_info(host: str) -> list[MountInfo]:
+def get_mount_info(host: str) -> list[models.MountInfo]:
     """Get mount info from cache."""
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1121,18 +1063,7 @@ def get_mount_info(host: str) -> list[MountInfo]:
             WHERE host = ?
         """, (host,))
 
-        rows = cursor.fetchall()
-
-        return [
-            MountInfo(
-                mountpoint=row[0],
-                size_bytes=row[1],
-                avail_bytes=row[2],
-                used_bytes=row[3],
-                collected_at=row[4],
-            )
-            for row in rows
-        ]
+        return [models.MountInfo.parse_row(row) for row in cursor.fetchall()]
 
 
 def collect_prometheus_mount_data() -> bool:
@@ -1157,7 +1088,7 @@ def collect_prometheus_mount_data() -> bool:
     instance_map = cfg.get_dict("prometheus", "instance_map")
 
     # Find machines with mount configuration
-    machines = config.get("machine", [])
+    machines = cfg.get_list("machine")
     target_machines = [
         (m["name"], m["mount"], m.get("os", ""))
         for m in machines if m.get("mount")
@@ -1194,7 +1125,12 @@ def collect_prometheus_mount_data() -> bool:
 # =============================================================================
 
 
-def save_vm_data(esxi_host: str, vms: list[VMInfo]):
+# -----------------------------------------------------------------------------
+# Save functions
+# -----------------------------------------------------------------------------
+
+
+def save_vm_data(esxi_host: str, vms: list[models.VMInfo]):
     """Save VM data to SQLite cache.
 
     Deletes all existing VMs for the host first, then inserts new data.
@@ -1202,7 +1138,7 @@ def save_vm_data(esxi_host: str, vms: list[VMInfo]):
     """
     collected_at = datetime.now().isoformat()
 
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         # Delete all existing VMs for this host first
@@ -1230,11 +1166,11 @@ def save_vm_data(esxi_host: str, vms: list[VMInfo]):
         conn.commit()
 
 
-def save_host_info(host_info: HostInfo):
+def save_host_info(host_info: models.HostInfo):
     """Save host info (uptime + CPU + ESXi version + usage) to SQLite cache."""
     collected_at = datetime.now().isoformat()
 
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1268,7 +1204,7 @@ def save_host_info_failed(host: str):
     """
     collected_at = datetime.now().isoformat()
 
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1283,7 +1219,7 @@ def save_host_info_failed(host: str):
 
 def update_collection_status(host: str, status: str):
     """Update the collection status for a host."""
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1294,9 +1230,9 @@ def update_collection_status(host: str, status: str):
         conn.commit()
 
 
-def get_collection_status(host: str) -> CollectionStatus | None:
+def get_collection_status(host: str) -> models.CollectionStatus | None:
     """Get the collection status for a host."""
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1306,15 +1242,7 @@ def get_collection_status(host: str) -> CollectionStatus | None:
         """, (host,))
 
         row = cursor.fetchone()
-
-        if row:
-            return CollectionStatus(
-                host=row[0],
-                last_fetch=row[1],
-                status=row[2],
-            )
-
-    return None
+        return models.CollectionStatus.parse_row(row) if row else None
 
 
 def is_host_reachable(host: str) -> bool:
@@ -1323,9 +1251,9 @@ def is_host_reachable(host: str) -> bool:
     return status is not None and status.status == "success"
 
 
-def get_vm_info(vm_name: str, esxi_host: str | None = None) -> VMInfo | None:
+def get_vm_info(vm_name: str, esxi_host: str | None = None) -> models.VMInfo | None:
     """Get VM info from cache."""
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         if esxi_host:
@@ -1344,26 +1272,12 @@ def get_vm_info(vm_name: str, esxi_host: str | None = None) -> VMInfo | None:
             """, (vm_name,))
 
         row = cursor.fetchone()
-
-        if row:
-            return VMInfo(
-                vm_name=row[0],
-                cpu_count=row[1],
-                ram_mb=row[2],
-                storage_gb=round(row[3], 1) if row[3] else None,
-                power_state=row[4],
-                esxi_host=row[5],
-                cpu_usage_mhz=row[6],
-                memory_usage_mb=row[7],
-                collected_at=row[8],
-            )
-
-    return None
+        return models.VMInfo.parse_row_full(row) if row else None
 
 
-def get_all_vm_info_for_host(esxi_host: str) -> list[VMInfo]:
+def get_all_vm_info_for_host(esxi_host: str) -> list[models.VMInfo]:
     """Get all VM info for a specific ESXi host from cache."""
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1373,27 +1287,12 @@ def get_all_vm_info_for_host(esxi_host: str) -> list[VMInfo]:
             WHERE esxi_host = ?
         """, (esxi_host,))
 
-        rows = cursor.fetchall()
-
-        return [
-            VMInfo(
-                esxi_host=esxi_host,
-                vm_name=row[0],
-                cpu_count=row[1],
-                ram_mb=row[2],
-                storage_gb=round(row[3], 1) if row[3] else None,
-                power_state=row[4],
-                cpu_usage_mhz=row[5],
-                memory_usage_mb=row[6],
-                collected_at=row[7],
-            )
-            for row in rows
-        ]
+        return [models.VMInfo.parse_row(row, esxi_host) for row in cursor.fetchall()]
 
 
-def get_host_info(host: str) -> HostInfo | None:
+def get_host_info(host: str) -> models.HostInfo | None:
     """Get uptime info from cache."""
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1404,29 +1303,12 @@ def get_host_info(host: str) -> HostInfo | None:
         """, (host,))
 
         row = cursor.fetchone()
-
-        if row:
-            return HostInfo(
-                host=row[0],
-                boot_time=row[1],
-                uptime_seconds=row[2],
-                status=row[3],
-                cpu_threads=row[4],
-                cpu_cores=row[5],
-                os_version=row[6],
-                cpu_usage_percent=row[7],
-                memory_usage_percent=row[8],
-                memory_total_bytes=row[9],
-                memory_used_bytes=row[10],
-                collected_at=row[11],
-            )
-
-    return None
+        return models.HostInfo.parse_row(row) if row else None
 
 
-def get_all_host_info() -> dict[str, HostInfo]:
+def get_all_host_info() -> dict[str, models.HostInfo]:
     """Get all uptime info from cache."""
-    with _db_lock, get_connection(get_server_data_db_path()) as conn:
+    with _get_locked_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1435,25 +1317,7 @@ def get_all_host_info() -> dict[str, HostInfo]:
             FROM host_info
         """)
 
-        rows = cursor.fetchall()
-
-        return {
-            row[0]: HostInfo(
-                host=row[0],
-                boot_time=row[1],
-                uptime_seconds=row[2],
-                status=row[3],
-                cpu_threads=row[4],
-                cpu_cores=row[5],
-                os_version=row[6],
-                cpu_usage_percent=row[7],
-                memory_usage_percent=row[8],
-                memory_total_bytes=row[9],
-                memory_used_bytes=row[10],
-                collected_at=row[11],
-            )
-            for row in rows
-        }
+        return {row[0]: models.HostInfo.parse_row(row) for row in cursor.fetchall()}
 
 
 def _collect_esxi_host_data(si, host: str) -> bool:
