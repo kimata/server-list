@@ -25,10 +25,6 @@ def env_mock():
         {
             "TEST": "true",
             "NO_COLORED_LOGS": "true",
-            # SQLite 環境変数を明示的に設定（並列テスト時の競合防止）
-            "SQLITE_MMAP_SIZE": "0",
-            "SQLITE_JOURNAL_MODE": "WAL",
-            "SQLITE_LOCKING_MODE": "EXCLUSIVE",
         },
     ) as fixture:
         yield fixture
