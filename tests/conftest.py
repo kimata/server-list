@@ -98,21 +98,21 @@ def flask_app(sample_config):
     import my_lib.webapp.config
 
     from server_list.cli.webui import create_app
+    from server_list.config import Config
 
     webapp_config = my_lib.webapp.config.WebappConfig.parse(sample_config["webapp"])
+    config = Config.parse(sample_config)
 
     # バックグラウンドワーカーとデータベース初期化をモック（並列テスト時の競合防止）
     with (
-        unittest.mock.patch("server_list.cli.webui.start_cache_worker"),
         unittest.mock.patch("server_list.cli.webui.start_collector"),
-        unittest.mock.patch("server_list.cli.webui.cache_manager.init_db"),
         unittest.mock.patch("server_list.cli.webui.cpu_benchmark.init_db"),
         unittest.mock.patch("server_list.cli.webui.data_collector.init_db"),
         unittest.mock.patch("atexit.register"),
     ):
         app = create_app(webapp_config)
         app.config["TESTING"] = True
-        app.config["CONFIG"] = sample_config
+        app.config["CONFIG"] = config
         yield app
 
 

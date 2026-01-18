@@ -3,13 +3,11 @@
 Web API for serving config.yaml dynamically.
 Endpoint: /server-list/api/config
 
-Uses cache for fast responses.
 For ESXi hosts, VM list is automatically populated from collected data.
 """
 
 import flask
 
-import server_list.spec.cache_manager as cache_manager
 import server_list.spec.data_collector as data_collector
 import server_list.spec.webapi as webapi
 
@@ -65,18 +63,21 @@ def enrich_config_with_vm_data(config: dict) -> dict:
 @config_api.route("/config", methods=["GET"])
 def get_config_api():
     """
-    Get the server configuration from cache.
+    Get the server configuration.
 
     For ESXi hosts, VM list is automatically populated from collected data.
 
     Returns:
         JSON with machine configuration data
     """
-    config = cache_manager.get_config()
+    from server_list.config import Config
 
-    if config:
-        # Enrich config with VM data from ESXi
-        enriched_config = enrich_config_with_vm_data(config)
-        return webapi.success_response(enriched_config)
+    config: Config | None = flask.current_app.config.get("CONFIG")
 
-    return webapi.error_response("Config not available", 503)
+    if config is None:
+        return webapi.error_response("Config not available", 503)
+
+    # Convert Config dataclass to dict and enrich with VM data
+    config_dict = config.to_dict()
+    enriched_config = enrich_config_with_vm_data(config_dict)
+    return webapi.success_response(enriched_config)

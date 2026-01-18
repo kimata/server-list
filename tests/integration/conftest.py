@@ -23,9 +23,11 @@ def flask_app(sample_config):
     import my_lib.webapp.config
 
     from server_list.cli.webui import create_app
+    from server_list.config import Config
     from server_list.spec import db_config
 
     webapp_config = my_lib.webapp.config.WebappConfig.parse(sample_config["webapp"])
+    config = Config.parse(sample_config)
 
     # 一時ディレクトリでデータベースを隔離
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -36,13 +38,12 @@ def flask_app(sample_config):
 
         # バックグラウンドワーカーのみモック（データベース初期化は実行する）
         with (
-            unittest.mock.patch("server_list.cli.webui.start_cache_worker"),
             unittest.mock.patch("server_list.cli.webui.start_collector"),
             unittest.mock.patch("atexit.register"),
         ):
             app = create_app(webapp_config)
             app.config["TESTING"] = True
-            app.config["CONFIG"] = sample_config
+            app.config["CONFIG"] = config
             yield app
 
 

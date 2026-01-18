@@ -10,17 +10,12 @@ import unittest.mock
 class TestConfigApi:
     """config API のテスト"""
 
-    def test_get_config_success(self, client, sample_config):
+    def test_get_config_success(self, client):
         """GET /api/config が正常に動作する"""
-        with (
-            unittest.mock.patch(
-                "server_list.spec.cache_manager.get_config",
-                return_value=sample_config,
-            ),
-            unittest.mock.patch(
-                "server_list.spec.data_collector.get_all_vm_info_for_host",
-                return_value=[],
-            ),
+        # flask_app fixture で CONFIG が設定済み
+        with unittest.mock.patch(
+            "server_list.spec.data_collector.get_all_vm_info_for_host",
+            return_value=[],
         ):
             response = client.get("/server-list/api/config")
 
@@ -31,18 +26,21 @@ class TestConfigApi:
         assert len(data["data"]["machine"]) == 1
         assert data["data"]["machine"][0]["name"] == "test-server-1.example.com"
 
-    def test_get_config_not_available(self, client):
+    def test_get_config_not_available(self, flask_app):
         """設定が取得できない場合に503を返す"""
-        with unittest.mock.patch(
-            "server_list.spec.cache_manager.get_config",
-            return_value=None,
-        ):
-            response = client.get("/server-list/api/config")
+        # CONFIG を一時的に None に設定
+        original_config = flask_app.config.get("CONFIG")
+        flask_app.config["CONFIG"] = None
+        try:
+            with flask_app.test_client() as client:
+                response = client.get("/server-list/api/config")
 
-        assert response.status_code == 503
-        data = response.get_json()
-        assert data["success"] is False
-        assert "error" in data
+            assert response.status_code == 503
+            data = response.get_json()
+            assert data["success"] is False
+            assert "error" in data
+        finally:
+            flask_app.config["CONFIG"] = original_config
 
 
 class TestIsEsxiHost:

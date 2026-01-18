@@ -153,9 +153,7 @@ class TestBackgroundWorkers:
         webapp_config = my_lib.webapp.config.WebappConfig.parse(sample_config["webapp"])
 
         with (
-            unittest.mock.patch("server_list.cli.webui.start_cache_worker") as mock_cache,
             unittest.mock.patch("server_list.cli.webui.start_collector") as mock_collector,
-            unittest.mock.patch("server_list.cli.webui.cache_manager.init_db"),
             unittest.mock.patch("server_list.cli.webui.cpu_benchmark.init_db"),
             unittest.mock.patch("server_list.cli.webui.data_collector.init_db"),
             unittest.mock.patch.dict(os.environ, {"WERKZEUG_RUN_MAIN": "true"}),
@@ -163,7 +161,6 @@ class TestBackgroundWorkers:
         ):
             create_app(webapp_config)
 
-            mock_cache.assert_called_once()
             mock_collector.assert_called_once()
 
     def test_workers_start_in_non_debug_mode(self, sample_config):
@@ -186,9 +183,7 @@ class TestBackgroundWorkers:
             return original_get(key, default)
 
         with (
-            unittest.mock.patch("server_list.cli.webui.start_cache_worker") as mock_cache,
             unittest.mock.patch("server_list.cli.webui.start_collector") as mock_collector,
-            unittest.mock.patch("server_list.cli.webui.cache_manager.init_db"),
             unittest.mock.patch("server_list.cli.webui.cpu_benchmark.init_db"),
             unittest.mock.patch("server_list.cli.webui.data_collector.init_db"),
             unittest.mock.patch.object(os.environ, "get", side_effect=mock_environ_get),
@@ -197,5 +192,4 @@ class TestBackgroundWorkers:
             create_app(webapp_config)
 
             # 非デバッグモードでもワーカーが起動することを確認
-            mock_cache.assert_called_once()
             mock_collector.assert_called_once()

@@ -28,8 +28,7 @@ import my_lib.webapp.config
 import my_lib.webapp.event
 import my_lib.webapp.util
 
-from server_list.spec import cache_manager, cpu_benchmark, data_collector, db
-from server_list.spec.cache_manager import start_cache_worker, stop_cache_worker
+from server_list.spec import cpu_benchmark, data_collector, db
 from server_list.spec.data_collector import start_collector, stop_collector
 from server_list.spec.ogp import (
     generate_machine_page_ogp,
@@ -52,7 +51,6 @@ URL_PREFIX = "/server-list"
 def term() -> None:
     """Terminate the application gracefully."""
     logging.info("Terminating application...")
-    stop_cache_worker()
     stop_collector()
     logging.info("Application terminated.")
 
@@ -138,7 +136,6 @@ def create_app(
         return flask.send_from_directory(db.IMAGE_DIR, filename)
 
     # Initialize databases (required for API to work)
-    cache_manager.init_db()
     cpu_benchmark.init_db()
     data_collector.init_db()
 
@@ -147,9 +144,7 @@ def create_app(
     # - In non-debug mode: WERKZEUG_RUN_MAIN is not set
     werkzeug_run_main = os.environ.get("WERKZEUG_RUN_MAIN")
     if werkzeug_run_main == "true" or werkzeug_run_main is None:
-        start_cache_worker()
         start_collector()
-        atexit.register(stop_cache_worker)
         atexit.register(stop_collector)
 
     my_lib.webapp.config.show_handler_list(app)
