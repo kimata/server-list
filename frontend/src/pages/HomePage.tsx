@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import type { Config, UptimeData, PowerData } from '../types/config';
 import { ServerCard } from '../components/ServerCard';
 import Footer from '../components/Footer';
@@ -176,7 +176,7 @@ export function HomePage() {
 
       <section className="py-8">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-xs uppercase tracking-wide text-blue-600 mb-1">物理サーバー</p>
               <p className="text-2xl font-bold text-blue-800">{config?.machine.length || 0} 台</p>
@@ -189,6 +189,16 @@ export function HomePage() {
               <p className="text-xs uppercase tracking-wide text-yellow-600 mb-1">ストレージデバイス</p>
               <p className="text-2xl font-bold text-yellow-800">{totalStorageDevices} 個</p>
             </div>
+            <Link
+              to="/ups"
+              className="bg-purple-50 border border-purple-200 rounded-lg p-4 hover:bg-purple-100 hover:border-purple-300 transition-colors"
+            >
+              <p className="text-xs uppercase tracking-wide text-purple-600 mb-1">UPS トポロジー</p>
+              <p className="text-2xl font-bold text-purple-800 flex items-center gap-2">
+                <span>🔋</span>
+                <span>表示 →</span>
+              </p>
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
