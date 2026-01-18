@@ -222,6 +222,63 @@ class TestSaveAndGetHostInfo:
         assert "host-2" in result
 
 
+class TestBatchQueries:
+    """バッチクエリ関数のテスト"""
+
+    def test_get_all_vm_info(self, temp_data_dir):
+        """全VM情報をホスト別に取得できる"""
+        from server_list.spec import data_collector
+        from server_list.spec.models import VMInfo
+
+        db_path = temp_data_dir / "test.db"
+        schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
+
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
+            data_collector.init_db()
+
+            # 2つのホストにVMを保存
+            data_collector.save_vm_data("host-1", [
+                VMInfo(esxi_host="host-1", vm_name="vm1", cpu_count=2, ram_mb=4096,
+                       storage_gb=50.0, power_state="poweredOn"),
+                VMInfo(esxi_host="host-1", vm_name="vm2", cpu_count=4, ram_mb=8192,
+                       storage_gb=100.0, power_state="poweredOff"),
+            ])
+            data_collector.save_vm_data("host-2", [
+                VMInfo(esxi_host="host-2", vm_name="vm3", cpu_count=8, ram_mb=16384,
+                       storage_gb=200.0, power_state="poweredOn"),
+            ])
+
+            result = data_collector.get_all_vm_info()
+
+        assert len(result) == 2
+        assert len(result["host-1"]) == 2
+        assert len(result["host-2"]) == 1
+        assert {vm.vm_name for vm in result["host-1"]} == {"vm1", "vm2"}
+
+    def test_get_all_collection_status(self, temp_data_dir):
+        """全ホストのコレクション状態を取得できる"""
+        from server_list.spec import data_collector
+
+        db_path = temp_data_dir / "test.db"
+        schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
+
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
+            data_collector.init_db()
+
+            data_collector.update_collection_status("host-1", "success")
+            data_collector.update_collection_status("host-2", "error: timeout")
+            data_collector.update_collection_status("host-3", "success")
+
+            result = data_collector.get_all_collection_status()
+
+        assert len(result) == 3
+        assert result["host-1"].status == "success"
+        assert result["host-2"].status == "error: timeout"
+        assert result["host-3"].status == "success"
+
+
 class TestCollectorStartStop:
     """コレクターの開始・停止テスト"""
 

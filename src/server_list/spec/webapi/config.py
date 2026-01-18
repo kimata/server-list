@@ -28,9 +28,16 @@ def enrich_config_with_vm_data(config: dict) -> dict:
 
     When ESXi host is unreachable, cached data is used but power_state
     is set to 'unknown' to indicate the current state cannot be determined.
+
+    Optimized: Uses batch queries to fetch all VM info and collection
+    statuses in 2 DB queries instead of 2N queries (N = number of hosts).
     """
     if "machine" not in config:
         return config
+
+    # Batch fetch all data in 2 queries instead of 2N queries
+    all_vm_info = data_collector.get_all_vm_info()
+    all_status = data_collector.get_all_collection_status()
 
     enriched_machines = []
 
@@ -38,13 +45,13 @@ def enrich_config_with_vm_data(config: dict) -> dict:
         machine_copy = dict(machine)
 
         if is_esxi_host(machine_copy):
-            # Get VM list from collected ESXi data
             host_name = machine_copy.get("name", "")
-            vm_list = data_collector.get_all_vm_info_for_host(host_name)
+            vm_list = all_vm_info.get(host_name, [])
 
             if vm_list:
-                # Check if host is reachable to determine power_state handling
-                host_reachable = data_collector.is_host_reachable(host_name)
+                # Check if host is reachable from pre-fetched status
+                status = all_status.get(host_name)
+                host_reachable = status is not None and status.status == "success"
 
                 # Convert to config format with additional info
                 machine_copy["vm"] = [

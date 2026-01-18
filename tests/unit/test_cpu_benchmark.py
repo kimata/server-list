@@ -173,3 +173,79 @@ class TestClearBenchmark:
 
         cpu_benchmark.clear_benchmark("Test CPU")
         assert cpu_benchmark.get_benchmark("Test CPU") is None
+
+
+class TestBatchQueries:
+    """バッチクエリ関数のテスト"""
+
+    def test_get_all_benchmarks(self, temp_data_dir):
+        """全ベンチマークを取得できる"""
+        from server_list.spec import cpu_benchmark
+
+        db_path = temp_data_dir / "cpu_spec.db"
+        db_config.set_cpu_spec_db_path(db_path)
+
+        cpu_benchmark.init_db()
+        cpu_benchmark.save_benchmark("CPU A", 10000, 2000)
+        cpu_benchmark.save_benchmark("CPU B", 20000, 3000)
+        cpu_benchmark.save_benchmark("CPU C", 30000, 4000)
+
+        result = cpu_benchmark.get_all_benchmarks()
+
+        assert len(result) == 3
+        assert "CPU A" in result
+        assert result["CPU A"].multi_thread_score == 10000
+        assert result["CPU B"].single_thread_score == 3000
+
+    def test_get_benchmarks_batch_exact_match(self, temp_data_dir):
+        """バッチ取得で完全一致"""
+        from server_list.spec import cpu_benchmark
+
+        db_path = temp_data_dir / "cpu_spec.db"
+        db_config.set_cpu_spec_db_path(db_path)
+
+        cpu_benchmark.init_db()
+        cpu_benchmark.save_benchmark("Intel Core i7-12700K", 30000, 4000)
+        cpu_benchmark.save_benchmark("AMD Ryzen 9 5900X", 40000, 3500)
+
+        result = cpu_benchmark.get_benchmarks_batch(
+            ["Intel Core i7-12700K", "AMD Ryzen 9 5900X", "Unknown CPU"]
+        )
+
+        assert result["Intel Core i7-12700K"] is not None
+        assert result["Intel Core i7-12700K"].multi_thread_score == 30000
+        assert result["AMD Ryzen 9 5900X"] is not None
+        assert result["Unknown CPU"] is None
+
+    def test_get_benchmarks_batch_fuzzy_match(self, temp_data_dir):
+        """バッチ取得であいまい一致"""
+        from server_list.spec import cpu_benchmark
+
+        db_path = temp_data_dir / "cpu_spec.db"
+        db_config.set_cpu_spec_db_path(db_path)
+
+        cpu_benchmark.init_db()
+        cpu_benchmark.save_benchmark("Intel Core i7-12700K @ 3.60GHz", 30000, 4000)
+
+        result = cpu_benchmark.get_benchmarks_batch(["i7-12700K"])
+
+        assert result["i7-12700K"] is not None
+        assert "i7-12700K" in result["i7-12700K"].cpu_name
+
+    def test_find_benchmark_match_model_number(self):
+        """モデル番号でマッチング"""
+        from server_list.spec.cpu_benchmark import _find_benchmark_match
+        from server_list.spec.models import CPUBenchmark
+
+        all_benchmarks = {
+            "Intel Xeon E5-2699 v4 @ 2.20GHz": CPUBenchmark(
+                cpu_name="Intel Xeon E5-2699 v4 @ 2.20GHz",
+                multi_thread_score=25000,
+                single_thread_score=1800,
+            ),
+        }
+
+        result = _find_benchmark_match("Xeon E5-2699 v4", all_benchmarks)
+
+        assert result is not None
+        assert result.multi_thread_score == 25000

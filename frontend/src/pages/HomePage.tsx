@@ -56,33 +56,40 @@ export function HomePage() {
   });
 
   useEffect(() => {
-    fetch('/server-list/api/config')
-      .then((response) => {
-        if (!response.ok) {
+    // Fetch all data in parallel for faster initial load
+    const fetchAllData = async () => {
+      try {
+        // Start all API calls in parallel
+        const [configResponse] = await Promise.all([
+          fetch('/server-list/api/config'),
+          // Start uptime and power fetches in parallel (they don't need config)
+          fetchUptimeData(),
+          fetchPowerData(),
+        ]);
+
+        if (!configResponse.ok) {
           throw new Error('Failed to load config');
         }
-        return response.json();
-      })
-      .then((response: { success: boolean; data?: Config; error?: string }) => {
+
+        const response: { success: boolean; data?: Config; error?: string } = await configResponse.json();
         if (!response.success || !response.data) {
           throw new Error(response.error || 'Failed to load config');
         }
+
         const data = response.data;
         setConfig(data);
         setLoading(false);
 
-        // Fetch CPU benchmarks
+        // Fetch CPU benchmarks after config is loaded (needs CPU names)
         const cpuNames = data.machine.map((m) => m.cpu);
         fetchBenchmarks(cpuNames);
-
-        // Fetch uptime and power data
-        fetchUptimeData();
-        fetchPowerData();
-      })
-      .catch((err) => {
-        setError(err.message);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unknown error');
         setLoading(false);
-      });
+      }
+    };
+
+    fetchAllData();
   }, [fetchUptimeData, fetchPowerData, fetchBenchmarks]);
 
   const { maxCpuScore, maxRam, maxStorage } = useMemo(() => {

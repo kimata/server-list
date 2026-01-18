@@ -1254,6 +1254,48 @@ def is_host_reachable(host: str) -> bool:
     return status is not None and status.status == "success"
 
 
+def get_all_collection_status() -> dict[str, models.CollectionStatus]:
+    """Get all collection statuses in a single DB query.
+
+    Returns:
+        Dict mapping host name to CollectionStatus
+    """
+    with _get_connection() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT host, last_fetch, status
+            FROM collection_status
+        """)
+
+        return {row[0]: models.CollectionStatus.parse_row(row) for row in cursor.fetchall()}
+
+
+def get_all_vm_info() -> dict[str, list[models.VMInfo]]:
+    """Get all VM info grouped by ESXi host in a single DB query.
+
+    Returns:
+        Dict mapping ESXi host name to list of VMInfo
+    """
+    from collections import defaultdict
+
+    with _get_connection() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT vm_name, cpu_count, ram_mb, storage_gb, power_state, esxi_host,
+                   cpu_usage_mhz, memory_usage_mb, collected_at
+            FROM vm_info
+        """)
+
+        result: dict[str, list[models.VMInfo]] = defaultdict(list)
+        for row in cursor.fetchall():
+            if vm_info := models.VMInfo.parse_row_full(row):
+                result[vm_info.esxi_host].append(vm_info)
+
+        return dict(result)
+
+
 def get_vm_info(vm_name: str, esxi_host: str | None = None) -> models.VMInfo | None:
     """Get VM info from cache."""
     with _get_connection() as conn:

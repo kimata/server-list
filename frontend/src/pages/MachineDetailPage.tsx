@@ -70,8 +70,14 @@ export function MachineDetailPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch config
-        const configResponse = await fetch('/server-list/api/config');
+        // Start all API calls in parallel for faster initial load
+        const [configResponse] = await Promise.all([
+          fetch('/server-list/api/config'),
+          // Start uptime and power fetches in parallel (they don't need config)
+          fetchUptimeData(),
+          fetchPowerData(),
+        ]);
+
         if (!configResponse.ok) {
           throw new Error('Failed to load config');
         }
@@ -96,10 +102,6 @@ export function MachineDetailPage() {
         // Fetch CPU benchmarks for all machines
         const cpuNames = configData.machine.map((m) => m.cpu);
         fetchBenchmarks(cpuNames);
-
-        // Fetch uptime and power
-        fetchUptimeData();
-        fetchPowerData();
 
         setLoading(false);
       } catch (err) {

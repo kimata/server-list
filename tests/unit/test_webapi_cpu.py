@@ -87,8 +87,8 @@ class TestCpuBenchmarkBatchApi:
         )
 
         with unittest.mock.patch(
-            "server_list.spec.cpu_benchmark.get_benchmark",
-            return_value=benchmark_data,
+            "server_list.spec.cpu_benchmark.get_benchmarks_batch",
+            return_value={"Intel Core i7-12700K": benchmark_data},
         ):
             response = client.post(
                 "/server-list/api/cpu/benchmark/batch",
@@ -110,14 +110,14 @@ class TestCpuBenchmarkBatchApi:
 
     def test_batch_multiple_cpus(self, client):
         """複数のCPUを処理する"""
-        def mock_get_benchmark(cpu_name):
-            if cpu_name == "CPU1":
-                return CPUBenchmark(cpu_name="CPU1", multi_thread_score=10000, single_thread_score=2000)
-            return None
+        batch_results = {
+            "CPU1": CPUBenchmark(cpu_name="CPU1", multi_thread_score=10000, single_thread_score=2000),
+            "CPU2": None,
+        }
 
         with unittest.mock.patch(
-            "server_list.spec.cpu_benchmark.get_benchmark",
-            side_effect=mock_get_benchmark,
+            "server_list.spec.cpu_benchmark.get_benchmarks_batch",
+            return_value=batch_results,
         ):
             response = client.post(
                 "/server-list/api/cpu/benchmark/batch",

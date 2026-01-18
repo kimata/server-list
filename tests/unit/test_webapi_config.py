@@ -80,7 +80,7 @@ class TestEnrichConfigWithVmData:
 
     def test_enriches_esxi_host_with_vms(self):
         """ESXi ホストにVM情報が追加される"""
-        from server_list.spec.models import VMInfo
+        from server_list.spec.models import CollectionStatus, VMInfo
         from server_list.spec.webapi.config import enrich_config_with_vm_data
 
         config = {
@@ -112,12 +112,18 @@ class TestEnrichConfigWithVmData:
 
         with (
             unittest.mock.patch(
-                "server_list.spec.data_collector.get_all_vm_info_for_host",
-                return_value=vm_list,
+                "server_list.spec.data_collector.get_all_vm_info",
+                return_value={"esxi-host.example.com": vm_list},
             ),
             unittest.mock.patch(
-                "server_list.spec.data_collector.is_host_reachable",
-                return_value=True,
+                "server_list.spec.data_collector.get_all_collection_status",
+                return_value={
+                    "esxi-host.example.com": CollectionStatus(
+                        host="esxi-host.example.com",
+                        last_fetch="2024-01-01T00:00:00",
+                        status="success",
+                    )
+                },
             ),
         ):
             result = enrich_config_with_vm_data(config)
@@ -129,7 +135,7 @@ class TestEnrichConfigWithVmData:
 
     def test_enriches_esxi_host_with_unknown_power_state_when_unreachable(self):
         """ESXi ホストに到達できない場合、power_state が unknown になる"""
-        from server_list.spec.models import VMInfo
+        from server_list.spec.models import CollectionStatus, VMInfo
         from server_list.spec.webapi.config import enrich_config_with_vm_data
 
         config = {
@@ -153,12 +159,18 @@ class TestEnrichConfigWithVmData:
 
         with (
             unittest.mock.patch(
-                "server_list.spec.data_collector.get_all_vm_info_for_host",
-                return_value=vm_list,
+                "server_list.spec.data_collector.get_all_vm_info",
+                return_value={"esxi-host.example.com": vm_list},
             ),
             unittest.mock.patch(
-                "server_list.spec.data_collector.is_host_reachable",
-                return_value=False,
+                "server_list.spec.data_collector.get_all_collection_status",
+                return_value={
+                    "esxi-host.example.com": CollectionStatus(
+                        host="esxi-host.example.com",
+                        last_fetch="2024-01-01T00:00:00",
+                        status="failed",  # ホスト到達不可
+                    )
+                },
             ),
         ):
             result = enrich_config_with_vm_data(config)

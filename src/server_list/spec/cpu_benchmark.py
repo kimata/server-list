@@ -392,6 +392,82 @@ def get_benchmark(cpu_name: str) -> CPUBenchmark | None:
     return None
 
 
+def get_all_benchmarks() -> dict[str, CPUBenchmark]:
+    """Get all benchmark data from database in a single query.
+
+    Returns:
+        Dict mapping CPU name to CPUBenchmark
+    """
+    with get_connection(get_cpu_spec_db_path()) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT cpu_name, multi_thread_score, single_thread_score
+            FROM cpu_benchmark
+        """)
+
+        return {
+            row[0]: CPUBenchmark(
+                cpu_name=row[0],
+                multi_thread_score=row[1],
+                single_thread_score=row[2],
+            )
+            for row in cursor.fetchall()
+        }
+
+
+def _find_benchmark_match(
+    cpu_name: str, all_benchmarks: dict[str, CPUBenchmark]
+) -> CPUBenchmark | None:
+    """Find a matching benchmark for a CPU name using various strategies.
+
+    Matching strategies (in order of priority):
+    1. Exact match
+    2. Substring match (original name)
+    3. Substring match (normalized name)
+    4. Model number match
+
+    Args:
+        cpu_name: CPU name to look up
+        all_benchmarks: Dict of all benchmarks from database
+
+    Returns:
+        Matching CPUBenchmark or None if not found
+    """
+    # Try exact match first
+    if cpu_name in all_benchmarks:
+        return all_benchmarks[cpu_name]
+
+    # Try fuzzy matching
+    normalized_name = normalize_cpu_name(cpu_name)
+    for db_name, benchmark in all_benchmarks.items():
+        if cpu_name in db_name or normalized_name in db_name:
+            return benchmark
+
+    # Try model number matching
+    if model := extract_model_number(cpu_name):
+        for db_name, benchmark in all_benchmarks.items():
+            if (db_model := extract_model_number(db_name)) and db_model == model:
+                return benchmark
+
+    return None
+
+
+def get_benchmarks_batch(cpu_names: list[str]) -> dict[str, CPUBenchmark | None]:
+    """Get benchmark data for multiple CPUs efficiently.
+
+    Uses a single DB query to fetch all benchmarks, then matches
+    against requested CPU names using various matching strategies.
+
+    Args:
+        cpu_names: List of CPU names to look up
+
+    Returns:
+        Dict mapping requested CPU name to CPUBenchmark (or None if not found)
+    """
+    all_benchmarks = get_all_benchmarks()
+    return {cpu_name: _find_benchmark_match(cpu_name, all_benchmarks) for cpu_name in cpu_names}
+
+
 def clear_benchmark(cpu_name: str):
     """Clear benchmark data from database."""
     with get_connection(get_cpu_spec_db_path()) as conn:

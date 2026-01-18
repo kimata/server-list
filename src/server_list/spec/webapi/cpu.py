@@ -61,6 +61,8 @@ def get_cpu_benchmarks_batch():
 
     Returns:
         JSON with results for each CPU
+
+    Optimized: Uses batch query to fetch all benchmarks in a single DB query.
     """
     data = flask.request.get_json()
 
@@ -71,8 +73,11 @@ def get_cpu_benchmarks_batch():
     should_fetch = data.get("fetch", False)
     results = {}
 
+    # Batch fetch all benchmarks in a single query
+    batch_results = cpu_benchmark.get_benchmarks_batch(cpu_list)
+
     for cpu_name in cpu_list:
-        result = cpu_benchmark.get_benchmark(cpu_name)
+        result = batch_results.get(cpu_name)
         if result:
             result_dict = dataclasses.asdict(result)
             result_dict["source"] = "cache"
@@ -81,7 +86,7 @@ def get_cpu_benchmarks_batch():
                 "data": result_dict,
             }
         elif should_fetch:
-            # Fetch from web if not in cache
+            # Fetch from web if not in cache (still sequential for web requests)
             result = cpu_benchmark.fetch_and_save_benchmark(cpu_name)
             if result:
                 result_dict = dataclasses.asdict(result)
