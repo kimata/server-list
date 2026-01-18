@@ -132,6 +132,11 @@ def create_app(
         )
         return serve_html_with_ogp(ogp_tags)
 
+    # UPS page route (SPA)
+    @app.route(f"{URL_PREFIX}/ups")
+    def ups_page():
+        return serve_html_with_ogp("")
+
     # Serve server model images
     @app.route(f"{URL_PREFIX}/api/img/<path:filename>")
     def serve_image(filename):
