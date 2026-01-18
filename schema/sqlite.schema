@@ -72,3 +72,29 @@ CREATE TABLE IF NOT EXISTS mount_info (
     collected_at TIMESTAMP NOT NULL,
     UNIQUE(host, mountpoint)
 );
+
+-- UPS info table (from NUT - Network UPS Tools)
+CREATE TABLE IF NOT EXISTS ups_info (
+    ups_name TEXT NOT NULL,
+    host TEXT NOT NULL,
+    model TEXT,
+    battery_charge REAL,
+    battery_runtime INTEGER,
+    ups_load REAL,
+    ups_status TEXT,
+    ups_temperature REAL,
+    input_voltage REAL,
+    output_voltage REAL,
+    collected_at TIMESTAMP NOT NULL,
+    PRIMARY KEY (ups_name, host)
+);
+
+-- UPS client table (machines connected to UPS)
+CREATE TABLE IF NOT EXISTS ups_client (
+    ups_name TEXT NOT NULL,
+    host TEXT NOT NULL,
+    client_ip TEXT NOT NULL,
+    client_hostname TEXT,
+    collected_at TIMESTAMP NOT NULL,
+    PRIMARY KEY (ups_name, host, client_ip)
+);

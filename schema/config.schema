@@ -155,6 +155,29 @@
                 },
                 "required": ["name", "mode", "cpu", "ram", "os"]
             }
+        },
+        "ups": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "host": {
+                        "type": "string",
+                        "description": "NUT master server hostname"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "NUT UPS name (optional, if omitted all UPS on the host will be monitored)"
+                    },
+                    "port": {
+                        "type": "integer",
+                        "default": 3493,
+                        "description": "NUT server port (default: 3493)"
+                    }
+                },
+                "required": ["host"]
+            },
+            "description": "NUT master hosts to monitor UPS devices"
         }
     },
     "required": [

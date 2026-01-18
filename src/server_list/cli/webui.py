@@ -39,6 +39,7 @@ from server_list.spec.webapi.config import config_api
 from server_list.spec.webapi.cpu import cpu_api
 from server_list.spec.webapi.power import power_api
 from server_list.spec.webapi.storage import storage_api
+from server_list.spec.webapi.ups import ups_api
 from server_list.spec.webapi.uptime import uptime_api
 from server_list.spec.webapi.vm import vm_api
 
@@ -88,6 +89,7 @@ def create_app(
     app.register_blueprint(uptime_api, url_prefix=f"{URL_PREFIX}/api")
     app.register_blueprint(power_api, url_prefix=f"{URL_PREFIX}/api")
     app.register_blueprint(storage_api, url_prefix=f"{URL_PREFIX}/api")
+    app.register_blueprint(ups_api, url_prefix=f"{URL_PREFIX}/api")
 
     # Register webapp blueprints
     app.register_blueprint(my_lib.webapp.base.blueprint_default)

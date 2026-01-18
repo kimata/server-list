@@ -243,6 +243,7 @@ class TestCollectAllData:
             unittest.mock.patch.object(data_collector, "collect_prometheus_uptime_data", return_value=False),
             unittest.mock.patch.object(data_collector, "collect_prometheus_zfs_data", return_value=False),
             unittest.mock.patch.object(data_collector, "collect_prometheus_mount_data", return_value=False),
+            unittest.mock.patch.object(data_collector, "collect_ups_data", return_value=False),
         ):
             # 例外が発生しないことを確認
             data_collector.collect_all_data()

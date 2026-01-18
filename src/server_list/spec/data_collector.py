@@ -26,6 +26,7 @@ import my_lib.webapp.event
 import server_list.spec.db as db
 import server_list.spec.db_config as db_config
 import server_list.spec.models as models
+import server_list.spec.ups_collector as ups_collector
 
 UPDATE_INTERVAL_SEC = 300  # 5 minutes
 
@@ -1069,6 +1070,174 @@ def get_mount_info(host: str) -> list[models.MountInfo]:
         return [models.MountInfo.parse_row(row) for row in cursor.fetchall()]
 
 
+# =============================================================================
+# UPS functions (from NUT - Network UPS Tools)
+# =============================================================================
+
+
+def save_ups_info(ups_info_list: list[models.UPSInfo]):
+    """Save UPS info to SQLite cache."""
+    collected_at = datetime.now().isoformat()
+
+    with _get_connection() as conn:
+        cursor = conn.cursor()
+
+        for ups in ups_info_list:
+            cursor.execute("""
+                INSERT OR REPLACE INTO ups_info
+                (ups_name, host, model, battery_charge, battery_runtime,
+                 ups_load, ups_status, ups_temperature, input_voltage, output_voltage, collected_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                ups.ups_name,
+                ups.host,
+                ups.model,
+                ups.battery_charge,
+                ups.battery_runtime,
+                ups.ups_load,
+                ups.ups_status,
+                ups.ups_temperature,
+                ups.input_voltage,
+                ups.output_voltage,
+                collected_at,
+            ))
+
+        conn.commit()
+
+
+def save_ups_clients(clients: list[models.UPSClient]):
+    """Save UPS client info to SQLite cache."""
+    collected_at = datetime.now().isoformat()
+
+    with _get_connection() as conn:
+        cursor = conn.cursor()
+
+        # Delete existing clients for these UPS devices
+        for client in clients:
+            cursor.execute(
+                "DELETE FROM ups_client WHERE ups_name = ? AND host = ?",
+                (client.ups_name, client.host)
+            )
+
+        # Insert new client data
+        for client in clients:
+            cursor.execute("""
+                INSERT INTO ups_client
+                (ups_name, host, client_ip, client_hostname, collected_at)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                client.ups_name,
+                client.host,
+                client.client_ip,
+                client.client_hostname,
+                collected_at,
+            ))
+
+        conn.commit()
+
+
+def get_all_ups_info() -> list[models.UPSInfo]:
+    """Get all UPS info from cache."""
+    with _get_connection() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT ups_name, host, model, battery_charge, battery_runtime,
+                   ups_load, ups_status, ups_temperature, input_voltage, output_voltage, collected_at
+            FROM ups_info
+        """)
+
+        return [models.UPSInfo.parse_row(row) for row in cursor.fetchall()]
+
+
+def get_ups_info(ups_name: str, host: str) -> models.UPSInfo | None:
+    """Get specific UPS info from cache."""
+    with _get_connection() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT ups_name, host, model, battery_charge, battery_runtime,
+                   ups_load, ups_status, ups_temperature, input_voltage, output_voltage, collected_at
+            FROM ups_info
+            WHERE ups_name = ? AND host = ?
+        """, (ups_name, host))
+
+        row = cursor.fetchone()
+        return models.UPSInfo.parse_row(row) if row else None
+
+
+def get_ups_clients(ups_name: str, host: str) -> list[models.UPSClient]:
+    """Get UPS clients from cache."""
+    with _get_connection() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT ups_name, host, client_ip, client_hostname, collected_at
+            FROM ups_client
+            WHERE ups_name = ? AND host = ?
+        """, (ups_name, host))
+
+        return [models.UPSClient.parse_row(row) for row in cursor.fetchall()]
+
+
+def get_all_ups_clients() -> list[models.UPSClient]:
+    """Get all UPS clients from cache."""
+    with _get_connection() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT ups_name, host, client_ip, client_hostname, collected_at
+            FROM ups_client
+        """)
+
+        return [models.UPSClient.parse_row(row) for row in cursor.fetchall()]
+
+
+def collect_ups_data() -> bool:
+    """Collect UPS data from configured NUT hosts.
+
+    Returns:
+        True if any data was collected, False otherwise
+    """
+    config = load_config()
+    cfg = my_lib.config.accessor(config)
+
+    ups_configs = cfg.get_list("ups")
+    if not ups_configs:
+        return False
+
+    updated = False
+    all_ups_info: list[models.UPSInfo] = []
+    all_clients: list[models.UPSClient] = []
+
+    for ups_config in ups_configs:
+        host = ups_config.get("host")
+        if not host:
+            continue
+
+        port = ups_config.get("port", 3493)
+        ups_name_filter = ups_config.get("name")
+
+        logging.info("Collecting UPS data from NUT host %s:%d...", host, port)
+
+        ups_info_list, clients = ups_collector.fetch_all_ups_from_host(
+            host, port, ups_name_filter
+        )
+
+        if ups_info_list:
+            all_ups_info.extend(ups_info_list)
+            all_clients.extend(clients)
+            logging.info("  Found %d UPS(s) with %d client(s)", len(ups_info_list), len(clients))
+            updated = True
+
+    if all_ups_info:
+        save_ups_info(all_ups_info)
+    if all_clients:
+        save_ups_clients(all_clients)
+
+    return updated
+
+
 def collect_prometheus_mount_data() -> bool:
     """Collect mount point data from Prometheus for configured hosts.
 
@@ -1442,6 +1611,10 @@ def collect_all_data():
 
     # Collect Prometheus mount point data
     if collect_prometheus_mount_data():
+        updated = True
+
+    # Collect UPS data from NUT
+    if collect_ups_data():
         updated = True
 
     if updated:

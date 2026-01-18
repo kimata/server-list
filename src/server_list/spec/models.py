@@ -225,3 +225,59 @@ class StorageMetrics:
     size_bytes: float
     avail_bytes: float
     used_bytes: float
+
+
+@dataclass
+class UPSInfo:
+    """UPS information from NUT (Network UPS Tools)."""
+
+    ups_name: str
+    host: str
+    model: str | None = None
+    battery_charge: float | None = None  # %
+    battery_runtime: int | None = None  # seconds
+    ups_load: float | None = None  # %
+    ups_status: str | None = None  # OL, OB, etc.
+    ups_temperature: float | None = None  # °C
+    input_voltage: float | None = None
+    output_voltage: float | None = None
+    collected_at: str | None = None
+
+    @classmethod
+    def parse_row(cls, row: tuple) -> "UPSInfo":
+        """Create UPSInfo from DB row."""
+        return cls(
+            ups_name=row[0],
+            host=row[1],
+            model=row[2],
+            battery_charge=row[3],
+            battery_runtime=row[4],
+            ups_load=row[5],
+            ups_status=row[6],
+            ups_temperature=row[7],
+            input_voltage=row[8],
+            output_voltage=row[9],
+            collected_at=row[10],
+        )
+
+
+@dataclass
+class UPSClient:
+    """Client connected to UPS (from NUT)."""
+
+    ups_name: str
+    host: str
+    client_ip: str
+    client_hostname: str | None = None
+    collected_at: str | None = None
+
+    @classmethod
+    def parse_row(cls, row: tuple) -> "UPSClient":
+        """Create UPSClient from DB row."""
+        return cls(
+            ups_name=row[0],
+            host=row[1],
+            client_ip=row[2],
+            client_hostname=row[3],
+            collected_at=row[4],
+        )
