@@ -348,7 +348,7 @@ class TestUpsPageE2E:
         # ページが読み込まれた後、コンテンツを確認
         # UPS がない場合は「UPS が設定されていません」というメッセージが表示される
         # または UPS カードが表示される
-        page.wait_for_load_state("networkidle")
+        # NOTE: networkidle は SSE 接続があるためタイムアウトするので使用しない
 
         # エラーがないこと
         check_no_react_errors(js_errors, console_errors, " (UPS 空状態)")
