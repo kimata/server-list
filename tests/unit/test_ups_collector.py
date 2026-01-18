@@ -191,3 +191,121 @@ class TestFetchUpsInfo:
         ):
             result = ups_collector.fetch_ups_info("localhost", "bl100t")
             assert result is None
+
+
+class TestFetchUpsClients:
+    """UPS クライアント取得のテスト"""
+
+    def test_fetch_ups_clients_success(self):
+        """クライアント取得成功"""
+        mock_socket = unittest.mock.MagicMock()
+        mock_socket.recv.side_effect = [
+            b"BEGIN LIST CLIENT bl100t\n"
+            b"CLIENT bl100t 192.168.1.10\n"
+            b"CLIENT bl100t 192.168.1.20\n"
+            b"END LIST CLIENT bl100t\n",
+        ]
+
+        with unittest.mock.patch(
+            "server_list.spec.ups_collector.connect_to_nut",
+            return_value=mock_socket,
+        ):
+            result = ups_collector.fetch_ups_clients("localhost", "bl100t")
+
+        assert result is not None
+        assert len(result) == 2
+        assert result[0].client_ip == "192.168.1.10"
+        assert result[1].client_ip == "192.168.1.20"
+        assert result[0].ups_name == "bl100t"
+        assert result[0].host == "localhost"
+
+    def test_fetch_ups_clients_connection_failed(self):
+        """接続失敗時は空リストを返す"""
+        with unittest.mock.patch(
+            "server_list.spec.ups_collector.connect_to_nut",
+            return_value=None,
+        ):
+            result = ups_collector.fetch_ups_clients("localhost", "bl100t")
+            assert result == []
+
+
+class TestListUps:
+    """UPS 一覧取得のテスト"""
+
+    def test_list_ups_success(self):
+        """UPS 一覧取得成功"""
+        mock_socket = unittest.mock.MagicMock()
+        mock_socket.recv.side_effect = [
+            b"BEGIN LIST UPS\n"
+            b'UPS ups1 "APC Smart-UPS"\n'
+            b'UPS ups2 "CyberPower"\n'
+            b"END LIST UPS\n",
+        ]
+
+        result = ups_collector.list_ups(mock_socket)
+
+        assert len(result) == 2
+        assert result[0] == ("ups1", "APC Smart-UPS")
+        assert result[1] == ("ups2", "CyberPower")
+
+    def test_list_ups_empty(self):
+        """UPS がない場合"""
+        mock_socket = unittest.mock.MagicMock()
+        mock_socket.recv.side_effect = [
+            b"BEGIN LIST UPS\n"
+            b"END LIST UPS\n",
+        ]
+
+        result = ups_collector.list_ups(mock_socket)
+        assert len(result) == 0
+
+
+class TestFetchAllUpsFromHost:
+    """ホストの全 UPS 情報取得のテスト"""
+
+    def test_fetch_all_ups_from_host_success(self):
+        """全 UPS 情報取得成功"""
+        mock_variables = {
+            "ups.model": "Omron BL100T",
+            "battery.charge": "95",
+            "battery.runtime": "1800",
+            "ups.load": "30",
+            "ups.status": "OL",
+        }
+
+        with (
+            unittest.mock.patch(
+                "server_list.spec.ups_collector.connect_to_nut",
+            ) as mock_connect,
+            unittest.mock.patch(
+                "server_list.spec.ups_collector.list_ups",
+                return_value=[("bl100t", "Omron BL100T")],
+            ),
+            unittest.mock.patch(
+                "server_list.spec.ups_collector.get_ups_variables",
+                return_value=mock_variables,
+            ),
+            unittest.mock.patch(
+                "server_list.spec.ups_collector.get_ups_clients",
+                return_value=["192.168.1.10"],
+            ),
+        ):
+            mock_connect.return_value = unittest.mock.MagicMock()
+            ups_list, clients = ups_collector.fetch_all_ups_from_host("localhost")
+
+        assert len(ups_list) == 1
+        assert ups_list[0].ups_name == "bl100t"
+        assert ups_list[0].model == "Omron BL100T"
+        assert ups_list[0].battery_charge == 95.0
+        assert len(clients) == 1
+        assert clients[0].client_ip == "192.168.1.10"
+
+    def test_fetch_all_ups_from_host_connection_failed(self):
+        """接続失敗時は空リストを返す"""
+        with unittest.mock.patch(
+            "server_list.spec.ups_collector.connect_to_nut",
+            return_value=None,
+        ):
+            ups_list, clients = ups_collector.fetch_all_ups_from_host("localhost")
+            assert ups_list == []
+            assert clients == []

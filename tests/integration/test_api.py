@@ -231,3 +231,117 @@ class TestUptimeApiIntegration:
             data = response.get_json()
             assert data["success"] is True
             assert len(data["data"]) == 2
+
+
+class TestUpsApiIntegration:
+    """UPS API の統合テスト"""
+
+    def test_ups_info_lookup(self, client, temp_data_dir):
+        """UPS 情報検索"""
+        from server_list.spec import data_collector
+        from server_list.spec.models import UPSInfo
+
+        db_path = temp_data_dir / "test.db"
+        schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
+
+        ups_info = UPSInfo(
+            ups_name="bl100t",
+            host="engine",
+            model="Omron BL100T",
+            battery_charge=95.0,
+            battery_runtime=1800,
+            ups_load=30.0,
+            ups_status="OL",
+            ups_temperature=25.0,
+            input_voltage=100.0,
+            output_voltage=100.0,
+            collected_at="2024-01-01T00:00:00",
+        )
+
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
+            data_collector.init_db()
+            data_collector.save_ups_info([ups_info])
+
+            response = client.get("/server-list/api/ups/engine/bl100t")
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data["success"] is True
+            assert data["data"]["ups_name"] == "bl100t"
+            assert data["data"]["host"] == "engine"
+            assert data["data"]["model"] == "Omron BL100T"
+            assert data["data"]["battery_charge"] == 95.0
+
+    def test_all_ups_info(self, client, temp_data_dir):
+        """全 UPS 情報取得"""
+        from server_list.spec import data_collector
+        from server_list.spec.models import UPSClient, UPSInfo
+
+        db_path = temp_data_dir / "test.db"
+        schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
+
+        ups_info_1 = UPSInfo(
+            ups_name="bl100t",
+            host="engine",
+            model="Omron BL100T",
+            battery_charge=95.0,
+            battery_runtime=1800,
+            ups_load=30.0,
+            ups_status="OL",
+            collected_at="2024-01-01T00:00:00",
+        )
+        ups_info_2 = UPSInfo(
+            ups_name="smart-ups",
+            host="server1",
+            model="APC Smart-UPS",
+            battery_charge=100.0,
+            battery_runtime=3600,
+            ups_load=20.0,
+            ups_status="OL",
+            collected_at="2024-01-01T00:00:00",
+        )
+        ups_client = UPSClient(
+            ups_name="bl100t",
+            host="engine",
+            client_ip="192.168.1.10",
+            client_hostname="server1.local",
+            collected_at="2024-01-01T00:00:00",
+        )
+
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
+            data_collector.init_db()
+            data_collector.save_ups_info([ups_info_1, ups_info_2])
+            data_collector.save_ups_clients([ups_client])
+
+            response = client.get("/server-list/api/ups")
+
+            assert response.status_code == 200
+            data = response.get_json()
+            assert data["success"] is True
+            assert len(data["data"]) == 2
+
+            # bl100t の情報を確認（クライアント情報も含まれる）
+            bl100t = next((u for u in data["data"] if u["ups_name"] == "bl100t"), None)
+            assert bl100t is not None
+            assert len(bl100t["clients"]) == 1
+            assert bl100t["clients"][0]["client_ip"] == "192.168.1.10"
+
+    def test_ups_not_found(self, client, temp_data_dir):
+        """UPS が見つからない場合"""
+        from server_list.spec import data_collector
+
+        db_path = temp_data_dir / "test.db"
+        schema_path = Path(__file__).parent.parent.parent / "schema" / "sqlite.schema"
+        db_config.set_server_data_db_path(db_path)
+
+        with unittest.mock.patch.object(db, "SQLITE_SCHEMA_PATH", schema_path):
+            data_collector.init_db()
+
+            response = client.get("/server-list/api/ups/nonexistent/unknown")
+
+            assert response.status_code == 404
+            data = response.get_json()
+            assert data["success"] is False
+            assert "error" in data

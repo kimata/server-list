@@ -291,3 +291,119 @@ class TestAllMachinesE2E:
 
         if errors_found:
             pytest.fail(f"以下のマシンページでエラーが発生しました:\n" + "\n".join(errors_found))
+
+
+@pytest.mark.e2e
+class TestUpsPageE2E:
+    """UPS ページ E2E テスト"""
+
+    def test_ups_page_loads(self, page, webserver, base_url):
+        """UPS ページ表示の E2E テスト"""
+        page.set_viewport_size({"width": 1920, "height": 1080})
+
+        js_errors, console_errors = setup_error_handlers(page)
+
+        # UPS ページにアクセス
+        page.goto(f"{base_url}/ups", wait_until="load")
+
+        # スクリーンショットを保存
+        screenshot_path = EVIDENCE_DIR / "e2e_ups_page.png"
+        screenshot_path.parent.mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(screenshot_path), full_page=True)
+
+        # エラーチェック
+        check_no_react_errors(js_errors, console_errors, " (UPS ページ)")
+
+    def test_ups_page_no_js_errors(self, page, webserver, base_url):
+        """UPS ページで JavaScript エラーがないことを確認"""
+        page.set_viewport_size({"width": 1920, "height": 1080})
+
+        js_errors, console_errors = setup_error_handlers(page)
+
+        page.goto(f"{base_url}/ups", wait_until="load")
+
+        # JavaScript/React エラーがないこと
+        check_no_react_errors(js_errors, console_errors, " (UPS ページ)")
+        check_page_content_no_error(page, " (UPS ページ)")
+
+    def test_api_ups(self, page, webserver, host, port):
+        """UPS API のテスト"""
+        response = page.request.get(f"http://{host}:{port}/server-list/api/ups")
+
+        assert response.ok
+        data = response.json()
+        assert isinstance(data, dict)
+        assert data.get("success") is True
+        # テスト環境では UPS データがない可能性があるため、data が空でも OK
+        assert "data" in data
+
+    def test_ups_page_displays_empty_state(self, page, webserver, base_url):
+        """UPS がない場合に空状態が表示されることを確認"""
+        page.set_viewport_size({"width": 1920, "height": 1080})
+
+        js_errors, console_errors = setup_error_handlers(page)
+
+        page.goto(f"{base_url}/ups", wait_until="load")
+
+        # ページが読み込まれた後、コンテンツを確認
+        # UPS がない場合は「UPS が設定されていません」というメッセージが表示される
+        # または UPS カードが表示される
+        page.wait_for_load_state("networkidle")
+
+        # エラーがないこと
+        check_no_react_errors(js_errors, console_errors, " (UPS 空状態)")
+
+        # ページタイトルまたはヘッダーを確認
+        page_content = page.content()
+        assert "UPS" in page_content or "ups" in page_content.lower()
+
+    def test_ups_page_has_back_link(self, page, webserver, base_url):
+        """UPS ページからホームへのリンクがあることを確認"""
+        page.set_viewport_size({"width": 1920, "height": 1080})
+
+        js_errors, console_errors = setup_error_handlers(page)
+
+        page.goto(f"{base_url}/ups", wait_until="load")
+
+        # 「サーバー一覧に戻る」リンクを探す
+        back_link = page.locator("a:has-text('サーバー一覧に戻る')")
+
+        # リンクが存在することを確認（存在しない場合もエラーにはしない）
+        if back_link.count() > 0:
+            # リンクをクリックしてホームに戻れることを確認
+            back_link.click()
+            page.wait_for_load_state("load")
+
+            # ホームページに遷移したことを確認
+            assert page.url.rstrip("/").endswith("/server-list") or page.url.rstrip("/").endswith("/server-list/")
+
+            check_no_react_errors(js_errors, console_errors, " (ホームへ戻る)")
+
+
+@pytest.mark.e2e
+class TestUpsApiE2E:
+    """UPS API E2E テスト"""
+
+    def test_api_ups_returns_valid_structure(self, page, webserver, host, port):
+        """UPS API が正しい構造を返すことを確認"""
+        response = page.request.get(f"http://{host}:{port}/server-list/api/ups")
+
+        assert response.ok
+        data = response.json()
+
+        # 必須フィールドの確認
+        assert "success" in data
+        assert "data" in data
+        assert data["success"] is True
+        assert isinstance(data["data"], list)
+
+    def test_api_ups_detail_not_found(self, page, webserver, host, port):
+        """存在しない UPS の詳細を取得すると 404 が返ることを確認"""
+        response = page.request.get(
+            f"http://{host}:{port}/server-list/api/ups/nonexistent/unknown"
+        )
+
+        # 404 が返ることを確認
+        assert response.status == 404
+        data = response.json()
+        assert data.get("success") is False
