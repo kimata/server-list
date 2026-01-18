@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import type { UPSInfo } from '../types/ups';
 
 interface UPSCardProps {
@@ -37,31 +38,73 @@ function formatRuntime(seconds: number | null): string {
   return `${minutes}分`;
 }
 
+function getImageUrl(upsName: string, model: string | null): string {
+  // Try to find image by model name first, then by ups_name
+  // The image filename should match the model name (e.g., "BL100T.png")
+  const imageName = model?.replace(/\s+/g, '') || upsName.toUpperCase();
+  return `/server-list/api/img/${encodeURIComponent(imageName)}.png`;
+}
+
 export function UPSCard({ ups }: UPSCardProps) {
   const statusBadge = getStatusBadge(ups.ups_status);
+  const displayName = ups.model || ups.ups_name.toUpperCase();
+  const imageUrl = getImageUrl(ups.ups_name, ups.model);
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
       <header className="card-header-gradient px-4 py-3 flex justify-between items-center">
-        <p className="text-white font-semibold flex items-center gap-2">
-          <span>🔋</span>
-          <span>{ups.ups_name}@{ups.host}</span>
-        </p>
+        <div>
+          <p className="text-white font-semibold flex items-center gap-2">
+            <span>🔋</span>
+            <span>{displayName}</span>
+          </p>
+          <p className="text-white/70 text-sm">
+            NUT Master: {ups.host}
+          </p>
+        </div>
         <span className={`inline-flex items-center px-2 py-1 ${statusBadge.color} text-xs rounded`}>
           {statusBadge.text}
         </span>
       </header>
 
       <div className="p-4">
-        {/* Model */}
-        {ups.model && (
-          <div className="mb-3">
-            <div className="inline-flex rounded overflow-hidden">
-              <span className="px-2 py-0.5 bg-gray-800 text-white text-xs">モデル</span>
-              <span className="px-2 py-0.5 bg-gray-100 text-gray-800 text-xs">{ups.model}</span>
+        {/* Image and basic info */}
+        <div className="flex gap-4 mb-4">
+          <div className="w-24 h-24 flex-shrink-0">
+            <img
+              src={imageUrl}
+              alt={displayName}
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                // Hide image on error
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          </div>
+          <div className="flex-1">
+            {/* UPS Name (internal) */}
+            <div className="mb-2">
+              <div className="inline-flex rounded overflow-hidden">
+                <span className="px-2 py-0.5 bg-gray-800 text-white text-xs">NUT 名</span>
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-800 text-xs">{ups.ups_name}</span>
+              </div>
+            </div>
+
+            {/* Runtime and Temperature in compact format */}
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="text-gray-500">残り時間: </span>
+                <span className="font-semibold">{formatRuntime(ups.battery_runtime)}</span>
+              </div>
+              {ups.ups_temperature !== null && (
+                <div>
+                  <span className="text-gray-500">温度: </span>
+                  <span className="font-semibold">{ups.ups_temperature}°C</span>
+                </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
 
         {/* Battery and Load */}
         <div className="grid grid-cols-2 gap-4 mb-4">
@@ -110,24 +153,6 @@ export function UPSCard({ ups }: UPSCardProps) {
           </div>
         </div>
 
-        {/* Runtime and Temperature */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <div className="text-xs text-gray-500 mb-1">残り稼働時間</div>
-            <div className="text-lg font-semibold text-gray-800">
-              {formatRuntime(ups.battery_runtime)}
-            </div>
-          </div>
-          {ups.ups_temperature !== null && (
-            <div>
-              <div className="text-xs text-gray-500 mb-1">温度</div>
-              <div className="text-lg font-semibold text-gray-800">
-                {ups.ups_temperature}°C
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Voltage */}
         {(ups.input_voltage !== null || ups.output_voltage !== null) && (
           <div className="grid grid-cols-2 gap-4 mb-4">
@@ -156,18 +181,35 @@ export function UPSCard({ ups }: UPSCardProps) {
                 <span>接続クライアント ({ups.clients.length}台)</span>
               </h4>
               <div className="space-y-1">
-                {ups.clients.map((client, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 text-sm text-gray-600"
-                  >
-                    <span className="inline-block w-2 h-2 bg-green-500 rounded-full" />
-                    <span>{client.client_hostname || client.client_ip}</span>
-                    {client.client_hostname && (
-                      <span className="text-xs text-gray-400">({client.client_ip})</span>
-                    )}
-                  </div>
-                ))}
+                {ups.clients.map((client, index) => {
+                  const displayName = client.client_hostname || client.client_ip;
+                  const isVM = !!client.esxi_host;
+                  const linkTarget = client.machine_name;
+
+                  return (
+                    <div
+                      key={index}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <span className={`inline-block w-2 h-2 rounded-full ${isVM ? 'bg-blue-500' : 'bg-green-500'}`} />
+                      {linkTarget ? (
+                        <Link
+                          to={`/machine/${encodeURIComponent(linkTarget)}`}
+                          className="text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          {displayName}
+                        </Link>
+                      ) : (
+                        <span className="text-gray-600">{displayName}</span>
+                      )}
+                      {isVM && (
+                        <span className="text-xs text-gray-400">
+                          (VM on {client.esxi_host})
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </>

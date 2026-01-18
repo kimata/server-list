@@ -1123,13 +1123,15 @@ def save_ups_clients(clients: list[models.UPSClient]):
         for client in clients:
             cursor.execute("""
                 INSERT INTO ups_client
-                (ups_name, host, client_ip, client_hostname, collected_at)
-                VALUES (?, ?, ?, ?, ?)
+                (ups_name, host, client_ip, client_hostname, esxi_host, machine_name, collected_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
                 client.ups_name,
                 client.host,
                 client.client_ip,
                 client.client_hostname,
+                client.esxi_host,
+                client.machine_name,
                 collected_at,
             ))
 
@@ -1172,7 +1174,7 @@ def get_ups_clients(ups_name: str, host: str) -> list[models.UPSClient]:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT ups_name, host, client_ip, client_hostname, collected_at
+            SELECT ups_name, host, client_ip, client_hostname, esxi_host, machine_name, collected_at
             FROM ups_client
             WHERE ups_name = ? AND host = ?
         """, (ups_name, host))
@@ -1186,11 +1188,83 @@ def get_all_ups_clients() -> list[models.UPSClient]:
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT ups_name, host, client_ip, client_hostname, collected_at
+            SELECT ups_name, host, client_ip, client_hostname, esxi_host, machine_name, collected_at
             FROM ups_client
         """)
 
         return [models.UPSClient.parse_row(row) for row in cursor.fetchall()]
+
+
+def _resolve_hostname(ip: str) -> str | None:
+    """Resolve IP address to hostname using DNS."""
+    import socket
+    try:
+        hostname, _, _ = socket.gethostbyaddr(ip)
+        # Remove domain suffix if present (e.g., "server.local" -> "server")
+        return hostname.split(".")[0]
+    except (socket.herror, socket.gaierror):
+        logging.debug("Could not resolve hostname for IP: %s", ip)
+        return None
+
+
+def _find_vm_esxi_host(hostname: str) -> str | None:
+    """Find the ESXi host running a VM with the given hostname.
+
+    Args:
+        hostname: The VM name to search for
+
+    Returns:
+        ESXi host name if found, None otherwise
+    """
+    with _get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT esxi_host FROM vm_info
+            WHERE vm_name = ? OR vm_name LIKE ?
+        """, (hostname, f"{hostname}.%"))
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+
+def _enrich_ups_clients(clients: list[models.UPSClient]) -> list[models.UPSClient]:
+    """Enrich UPS clients with hostname resolution and VM info.
+
+    For each client:
+    1. Resolve IP to hostname if not already set
+    2. Check if hostname is a VM and get its ESXi host
+    3. Set machine_name for linking (ESXi host for VMs, hostname otherwise)
+    """
+    enriched: list[models.UPSClient] = []
+
+    for client in clients:
+        hostname = client.client_hostname
+        if not hostname:
+            hostname = _resolve_hostname(client.client_ip)
+
+        esxi_host = None
+        machine_name = None
+
+        if hostname:
+            # Check if this is a VM
+            esxi_host = _find_vm_esxi_host(hostname)
+            if esxi_host:
+                # It's a VM - link to the ESXi host
+                machine_name = esxi_host
+            else:
+                # It's a physical machine - link to the hostname
+                machine_name = hostname
+
+        enriched.append(models.UPSClient(
+            ups_name=client.ups_name,
+            host=client.host,
+            client_ip=client.client_ip,
+            client_hostname=hostname,
+            esxi_host=esxi_host,
+            machine_name=machine_name,
+            collected_at=client.collected_at,
+        ))
+
+    return enriched
 
 
 def collect_ups_data() -> bool:
@@ -1233,7 +1307,9 @@ def collect_ups_data() -> bool:
     if all_ups_info:
         save_ups_info(all_ups_info)
     if all_clients:
-        save_ups_clients(all_clients)
+        # Enrich clients with hostname resolution and VM info
+        enriched_clients = _enrich_ups_clients(all_clients)
+        save_ups_clients(enriched_clients)
 
     return updated
 

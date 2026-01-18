@@ -3,6 +3,8 @@ export interface UPSClient {
   host: string;
   client_ip: string;
   client_hostname: string | null;
+  esxi_host: string | null;  // If client is a VM, the ESXi host running it
+  machine_name: string | null;  // Machine name for linking
   collected_at: string | null;
 }
 

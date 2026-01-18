@@ -269,6 +269,8 @@ class UPSClient:
     host: str
     client_ip: str
     client_hostname: str | None = None
+    esxi_host: str | None = None  # If client is a VM, the ESXi host running it
+    machine_name: str | None = None  # Machine name for linking (ESXi host for VMs, hostname for physical)
     collected_at: str | None = None
 
     @classmethod
@@ -279,5 +281,7 @@ class UPSClient:
             host=row[1],
             client_ip=row[2],
             client_hostname=row[3],
-            collected_at=row[4],
+            esxi_host=row[4],
+            machine_name=row[5],
+            collected_at=row[6],
         )

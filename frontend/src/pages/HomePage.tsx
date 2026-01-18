@@ -191,12 +191,15 @@ export function HomePage() {
             </div>
             <Link
               to="/ups"
-              className="bg-purple-50 border border-purple-200 rounded-lg p-4 hover:bg-purple-100 hover:border-purple-300 transition-colors"
+              className="bg-purple-50 border border-purple-200 rounded-lg p-4 hover:bg-purple-100 hover:border-purple-300 hover:shadow-md transition-all group"
             >
               <p className="text-xs uppercase tracking-wide text-purple-600 mb-1">UPS トポロジー</p>
-              <p className="text-2xl font-bold text-purple-800 flex items-center gap-2">
-                <span>🔋</span>
-                <span>表示 →</span>
+              <p className="text-2xl font-bold text-purple-800 flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <span>🔋</span>
+                  <span>UPS 状態</span>
+                </span>
+                <span className="text-purple-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all">→</span>
               </p>
             </Link>
           </div>
