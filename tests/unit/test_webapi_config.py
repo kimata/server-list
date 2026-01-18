@@ -13,9 +13,15 @@ class TestConfigApi:
     def test_get_config_success(self, client):
         """GET /api/config が正常に動作する"""
         # flask_app fixture で CONFIG が設定済み
-        with unittest.mock.patch(
-            "server_list.spec.data_collector.get_all_vm_info_for_host",
-            return_value=[],
+        with (
+            unittest.mock.patch(
+                "server_list.spec.data_collector.get_all_vm_info",
+                return_value={},
+            ),
+            unittest.mock.patch(
+                "server_list.spec.data_collector.get_all_collection_status",
+                return_value={},
+            ),
         ):
             response = client.get("/server-list/api/config")
 
@@ -191,7 +197,17 @@ class TestEnrichConfigWithVmData:
             ]
         }
 
-        result = enrich_config_with_vm_data(config)
+        with (
+            unittest.mock.patch(
+                "server_list.spec.data_collector.get_all_vm_info",
+                return_value={},
+            ),
+            unittest.mock.patch(
+                "server_list.spec.data_collector.get_all_collection_status",
+                return_value={},
+            ),
+        ):
+            result = enrich_config_with_vm_data(config)
 
         assert "vm" not in result["machine"][0]
 
