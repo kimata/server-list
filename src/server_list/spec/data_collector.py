@@ -31,13 +31,16 @@ UPDATE_INTERVAL_SEC = 300  # 5 minutes
 
 _update_thread: threading.Thread | None = None
 _should_stop = threading.Event()
-_db_lock = threading.Lock()
 
 
 @contextmanager
-def _get_locked_connection() -> Generator[sqlite3.Connection, None, None]:
-    """ロック付きDB接続を取得するコンテキストマネージャ."""
-    with _db_lock, db.get_connection(db_config.get_server_data_db_path()) as conn:
+def _get_connection() -> Generator[sqlite3.Connection, None, None]:
+    """DB接続を取得するコンテキストマネージャ.
+
+    SQLite 自体がファイルレベルのロック機構を持っているため、
+    アプリケーション側でのロックは不要。
+    """
+    with db.get_connection(db_config.get_server_data_db_path()) as conn:
         yield conn
 
 
@@ -351,7 +354,7 @@ def save_power_info(host: str, power_data: models.PowerInfo):
     """Save power consumption info to SQLite cache."""
     collected_at = datetime.now().isoformat()
 
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -372,7 +375,7 @@ def save_power_info(host: str, power_data: models.PowerInfo):
 
 def get_power_info(host: str) -> models.PowerInfo | None:
     """Get power consumption info from cache."""
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -387,7 +390,7 @@ def get_power_info(host: str) -> models.PowerInfo | None:
 
 def get_all_power_info() -> dict[str, models.PowerInfo]:
     """Get all power consumption info from cache."""
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -759,7 +762,7 @@ def save_zfs_pool_info(host: str, pools: list[models.ZfsPoolInfo]):
     """Save ZFS pool info to SQLite cache."""
     collected_at = datetime.now().isoformat()
 
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         # Delete existing pools for this host
@@ -786,7 +789,7 @@ def save_zfs_pool_info(host: str, pools: list[models.ZfsPoolInfo]):
 
 def get_zfs_pool_info(host: str) -> list[models.ZfsPoolInfo]:
     """Get ZFS pool info from cache."""
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1028,7 +1031,7 @@ def save_mount_info(host: str, mounts: list[models.MountInfo]):
     """Save mount info to SQLite cache."""
     collected_at = datetime.now().isoformat()
 
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         # Delete existing mounts for this host
@@ -1054,7 +1057,7 @@ def save_mount_info(host: str, mounts: list[models.MountInfo]):
 
 def get_mount_info(host: str) -> list[models.MountInfo]:
     """Get mount info from cache."""
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1138,7 +1141,7 @@ def save_vm_data(esxi_host: str, vms: list[models.VMInfo]):
     """
     collected_at = datetime.now().isoformat()
 
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         # Delete all existing VMs for this host first
@@ -1170,7 +1173,7 @@ def save_host_info(host_info: models.HostInfo):
     """Save host info (uptime + CPU + ESXi version + usage) to SQLite cache."""
     collected_at = datetime.now().isoformat()
 
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1204,7 +1207,7 @@ def save_host_info_failed(host: str):
     """
     collected_at = datetime.now().isoformat()
 
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1219,7 +1222,7 @@ def save_host_info_failed(host: str):
 
 def update_collection_status(host: str, status: str):
     """Update the collection status for a host."""
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1232,7 +1235,7 @@ def update_collection_status(host: str, status: str):
 
 def get_collection_status(host: str) -> models.CollectionStatus | None:
     """Get the collection status for a host."""
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1253,7 +1256,7 @@ def is_host_reachable(host: str) -> bool:
 
 def get_vm_info(vm_name: str, esxi_host: str | None = None) -> models.VMInfo | None:
     """Get VM info from cache."""
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         if esxi_host:
@@ -1277,7 +1280,7 @@ def get_vm_info(vm_name: str, esxi_host: str | None = None) -> models.VMInfo | N
 
 def get_all_vm_info_for_host(esxi_host: str) -> list[models.VMInfo]:
     """Get all VM info for a specific ESXi host from cache."""
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1292,7 +1295,7 @@ def get_all_vm_info_for_host(esxi_host: str) -> list[models.VMInfo]:
 
 def get_host_info(host: str) -> models.HostInfo | None:
     """Get uptime info from cache."""
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -1308,7 +1311,7 @@ def get_host_info(host: str) -> models.HostInfo | None:
 
 def get_all_host_info() -> dict[str, models.HostInfo]:
     """Get all uptime info from cache."""
-    with _get_locked_connection() as conn:
+    with _get_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
