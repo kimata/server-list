@@ -227,6 +227,7 @@ class TestCollectAllData:
             unittest.mock.patch.object(data_collector, "collect_prometheus_uptime_data", return_value=False),
             unittest.mock.patch.object(data_collector, "collect_prometheus_zfs_data", return_value=False),
             unittest.mock.patch.object(data_collector, "collect_prometheus_mount_data", return_value=False),
+            unittest.mock.patch.object(data_collector, "collect_cpu_benchmark_data", return_value=False),
             unittest.mock.patch("my_lib.webapp.event.notify_event"),
         ):
             data_collector.init_db()
@@ -244,6 +245,7 @@ class TestCollectAllData:
             unittest.mock.patch.object(data_collector, "collect_prometheus_zfs_data", return_value=False),
             unittest.mock.patch.object(data_collector, "collect_prometheus_mount_data", return_value=False),
             unittest.mock.patch.object(data_collector, "collect_ups_data", return_value=False),
+            unittest.mock.patch.object(data_collector, "collect_cpu_benchmark_data", return_value=False),
         ):
             # 例外が発生しないことを確認
             data_collector.collect_all_data()
@@ -265,6 +267,7 @@ class TestCollectAllData:
             unittest.mock.patch.object(data_collector, "collect_prometheus_uptime_data", return_value=False),
             unittest.mock.patch.object(data_collector, "collect_prometheus_zfs_data", return_value=False),
             unittest.mock.patch.object(data_collector, "collect_prometheus_mount_data", return_value=False),
+            unittest.mock.patch.object(data_collector, "collect_cpu_benchmark_data", return_value=False),
         ):
             data_collector.init_db()
             data_collector.collect_all_data()
