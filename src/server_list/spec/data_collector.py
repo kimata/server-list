@@ -23,6 +23,7 @@ import my_lib.config
 import my_lib.safe_access
 import my_lib.webapp.event
 
+import server_list.spec.cpu_benchmark as cpu_benchmark
 import server_list.spec.db as db
 import server_list.spec.db_config as db_config
 import server_list.spec.models as models
@@ -1683,6 +1684,56 @@ def _collect_esxi_host_data(si, host: str) -> bool:
         Disconnect(si)
 
 
+def collect_cpu_benchmark_data() -> bool:
+    """Collect CPU benchmark data for all configured machines.
+
+    Checks which CPUs don't have benchmark data yet and fetches them.
+    Uses rate limiting to avoid overwhelming cpubenchmark.net.
+
+    Returns:
+        True if any new data was collected, False otherwise
+    """
+    config = load_config()
+    cfg = my_lib.config.accessor(config)
+
+    machines = cfg.get_list("machine")
+    if not machines:
+        return False
+
+    # Get unique CPU names from config
+    cpu_names = set()
+    for machine in machines:
+        cpu_name = machine.get("cpu")
+        if cpu_name:
+            cpu_names.add(cpu_name)
+
+    if not cpu_names:
+        return False
+
+    # Check which CPUs don't have benchmark data yet
+    missing_cpus = []
+    for cpu_name in cpu_names:
+        if not cpu_benchmark.get_benchmark(cpu_name):
+            missing_cpus.append(cpu_name)
+
+    if not missing_cpus:
+        logging.debug("All CPU benchmarks are already cached")
+        return False
+
+    logging.info("Fetching CPU benchmark data for %d CPU(s)...", len(missing_cpus))
+
+    updated = False
+    for cpu_name in missing_cpus:
+        result = cpu_benchmark.fetch_and_save_benchmark(cpu_name)
+        if result:
+            logging.info("  Cached benchmark for: %s", cpu_name)
+            updated = True
+        else:
+            logging.warning("  Could not find benchmark for: %s", cpu_name)
+
+    return updated
+
+
 def collect_all_data():
     """Collect all data from configured ESXi and iLO hosts."""
     secret = load_secret()
@@ -1727,6 +1778,10 @@ def collect_all_data():
 
     # Collect UPS data from NUT
     if collect_ups_data():
+        updated = True
+
+    # Collect CPU benchmark data for configured machines
+    if collect_cpu_benchmark_data():
         updated = True
 
     if updated:

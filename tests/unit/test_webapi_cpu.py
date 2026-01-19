@@ -52,27 +52,34 @@ class TestCpuBenchmarkApi:
         data = response.get_json()
         assert data["success"] is False
 
-    def test_get_benchmark_fetch_from_web(self, client):
-        """fetch=true でウェブから取得する"""
-        benchmark_data = CPUBenchmark(
-            cpu_name="Intel Core i7-12700K",
-            multi_thread_score=30000,
-            single_thread_score=4000,
-        )
-
+    def test_get_benchmark_fetch_queued(self, client):
+        """fetch=true でバックグラウンドタスクをキューに追加する"""
         with (
             unittest.mock.patch("server_list.spec.cpu_benchmark.get_benchmark", return_value=None),
-            unittest.mock.patch(
-                "server_list.spec.cpu_benchmark.fetch_and_save_benchmark",
-                return_value=benchmark_data,
-            ),
+            unittest.mock.patch("server_list.spec.cpu_benchmark.queue_background_fetch", return_value=True),
+            unittest.mock.patch("server_list.spec.cpu_benchmark.is_fetch_pending", return_value=True),
         ):
             response = client.get("/server-list/api/cpu/benchmark?cpu=Intel%20Core%20i7-12700K&fetch=true")
 
         assert response.status_code == 200
         data = response.get_json()
         assert data["success"] is True
-        assert data["data"]["source"] == "web"
+        assert data["data"] is None
+        assert data["pending"] is True
+
+    def test_get_benchmark_fetch_already_pending(self, client):
+        """既にフェッチ中の場合もpending=trueを返す"""
+        with (
+            unittest.mock.patch("server_list.spec.cpu_benchmark.get_benchmark", return_value=None),
+            unittest.mock.patch("server_list.spec.cpu_benchmark.queue_background_fetch", return_value=False),
+            unittest.mock.patch("server_list.spec.cpu_benchmark.is_fetch_pending", return_value=True),
+        ):
+            response = client.get("/server-list/api/cpu/benchmark?cpu=Intel%20Core%20i7-12700K&fetch=true")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["success"] is True
+        assert data["pending"] is True
 
 
 class TestCpuBenchmarkBatchApi:
@@ -128,3 +135,26 @@ class TestCpuBenchmarkBatchApi:
         data = response.get_json()
         assert data["results"]["CPU1"]["success"] is True
         assert data["results"]["CPU2"]["success"] is False
+
+    def test_batch_with_fetch_queues_background(self, client):
+        """fetch=true で見つからないCPUのバックグラウンドフェッチをキューに追加する"""
+        batch_results = {
+            "CPU1": CPUBenchmark(cpu_name="CPU1", multi_thread_score=10000, single_thread_score=2000),
+        }
+
+        with (
+            unittest.mock.patch("server_list.spec.cpu_benchmark.get_benchmarks_batch", return_value=batch_results),
+            unittest.mock.patch("server_list.spec.cpu_benchmark.queue_background_fetch_batch", return_value=1),
+            unittest.mock.patch("server_list.spec.cpu_benchmark.is_fetch_pending", return_value=True),
+        ):
+            response = client.post(
+                "/server-list/api/cpu/benchmark/batch",
+                json={"cpus": ["CPU1", "CPU2"], "fetch": True},
+            )
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["results"]["CPU1"]["success"] is True
+        assert data["results"]["CPU2"]["success"] is False
+        assert data["results"]["CPU2"]["pending"] is True
+        assert data["results"]["_meta"]["queued"] == 1

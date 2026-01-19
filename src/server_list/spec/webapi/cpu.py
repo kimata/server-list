@@ -2,6 +2,10 @@
 """
 Web API for CPU benchmark data.
 Endpoint: /server-list/api/cpu/benchmark
+
+All endpoints respond immediately with cached data.
+If data is not cached and fetch is requested, a background task is queued
+and the frontend is notified via SSE when data becomes available.
 """
 
 import dataclasses
@@ -21,10 +25,11 @@ def get_cpu_benchmark():
 
     Query parameters:
         cpu: CPU name to look up (required)
-        fetch: If "true", fetch from web if not in cache (optional)
+        fetch: If "true", queue background fetch if not in cache (optional)
 
     Returns:
         JSON with cpu_name, multi_thread_score, single_thread_score
+        If data is not cached and fetch is requested, returns pending=true
     """
     cpu_name = flask.request.args.get("cpu")
 
@@ -37,15 +42,20 @@ def get_cpu_benchmark():
     if result:
         result_dict = dataclasses.asdict(result)
         result_dict["source"] = "cache"
+        result_dict["pending"] = False
         return webapi.success_response(result_dict)
 
-    # Optionally fetch from web
-    if flask.request.args.get("fetch", "").lower() == "true":
-        result = cpu_benchmark.fetch_and_save_benchmark(cpu_name)
-        if result:
-            result_dict = dataclasses.asdict(result)
-            result_dict["source"] = "web"
-            return webapi.success_response(result_dict)
+    # Queue background fetch if requested
+    should_fetch = flask.request.args.get("fetch", "").lower() == "true"
+    if should_fetch:
+        queued = cpu_benchmark.queue_background_fetch(cpu_name)
+        pending = queued or cpu_benchmark.is_fetch_pending(cpu_name)
+        return flask.jsonify({
+            "success": True,
+            "data": None,
+            "pending": pending,
+            "message": "Fetching benchmark data in background" if pending else "Fetch already in progress",
+        })
 
     return webapi.error_response(f"Benchmark data not found for: {cpu_name}")
 
@@ -57,12 +67,14 @@ def get_cpu_benchmarks_batch():
 
     Request body (JSON):
         cpus: List of CPU names to look up
-        fetch: If true, fetch from web if not in cache (optional)
+        fetch: If true, queue background fetch for missing CPUs (optional)
 
     Returns:
-        JSON with results for each CPU
+        JSON with results for each CPU.
+        Missing CPUs are marked with pending=true if background fetch was queued.
 
     Optimized: Uses batch query to fetch all benchmarks in a single DB query.
+    Always responds immediately - no blocking on web requests.
     """
     data = flask.request.get_json()
 
@@ -72,6 +84,7 @@ def get_cpu_benchmarks_batch():
     cpu_list = data["cpus"]
     should_fetch = data.get("fetch", False)
     results = {}
+    missing_cpus = []
 
     # Batch fetch all benchmarks in a single query
     batch_results = cpu_benchmark.get_benchmarks_batch(cpu_list)
@@ -81,29 +94,29 @@ def get_cpu_benchmarks_batch():
         if result:
             result_dict = dataclasses.asdict(result)
             result_dict["source"] = "cache"
+            result_dict["pending"] = False
             results[cpu_name] = {
                 "success": True,
                 "data": result_dict,
             }
-        elif should_fetch:
-            # Fetch from web if not in cache (still sequential for web requests)
-            result = cpu_benchmark.fetch_and_save_benchmark(cpu_name)
-            if result:
-                result_dict = dataclasses.asdict(result)
-                result_dict["source"] = "web"
-                results[cpu_name] = {
-                    "success": True,
-                    "data": result_dict,
-                }
-            else:
-                results[cpu_name] = {
-                    "success": False,
-                    "data": None,
-                }
         else:
+            missing_cpus.append(cpu_name)
             results[cpu_name] = {
                 "success": False,
                 "data": None,
+                "pending": False,
+            }
+
+    # Queue background fetches for missing CPUs
+    if should_fetch and missing_cpus:
+        queued_count = cpu_benchmark.queue_background_fetch_batch(missing_cpus)
+        # Update pending status for missing CPUs
+        for cpu_name in missing_cpus:
+            results[cpu_name]["pending"] = cpu_benchmark.is_fetch_pending(cpu_name)
+        if queued_count > 0:
+            results["_meta"] = {
+                "queued": queued_count,
+                "message": f"Queued {queued_count} background fetch(es)",
             }
 
     return flask.jsonify({

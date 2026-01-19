@@ -6,7 +6,9 @@ Fetches multi-thread and single-thread performance scores and stores them in SQL
 
 import logging
 import re
+import threading
 import time
+from typing import Any
 
 import bs4
 import requests
@@ -14,6 +16,137 @@ import requests
 from server_list.spec.db import get_connection
 from server_list.spec.db_config import get_cpu_spec_db_path
 from server_list.spec.models import CPUBenchmark
+
+
+# =============================================================================
+# In-memory cache with TTL for benchmark data
+# =============================================================================
+
+class BenchmarkCache:
+    """Thread-safe in-memory cache with TTL for benchmark data."""
+
+    def __init__(self, ttl_seconds: int = 3600):
+        self._cache: dict[str, Any] = {}
+        self._timestamps: dict[str, float] = {}
+        self._ttl = ttl_seconds
+        self._lock = threading.Lock()
+
+    def get(self, key: str) -> Any | None:
+        """Get cached value if not expired."""
+        with self._lock:
+            if key not in self._cache:
+                return None
+            if time.time() - self._timestamps[key] > self._ttl:
+                del self._cache[key]
+                del self._timestamps[key]
+                return None
+            return self._cache[key]
+
+    def set(self, key: str, value: Any) -> None:
+        """Set cache value with current timestamp."""
+        with self._lock:
+            self._cache[key] = value
+            self._timestamps[key] = time.time()
+
+    def invalidate(self, key: str | None = None) -> None:
+        """Invalidate specific key or all cache."""
+        with self._lock:
+            if key is None:
+                self._cache.clear()
+                self._timestamps.clear()
+            elif key in self._cache:
+                del self._cache[key]
+                del self._timestamps[key]
+
+
+# Global cache instance (1 hour TTL)
+_benchmark_cache = BenchmarkCache(ttl_seconds=3600)
+
+
+# =============================================================================
+# Background fetch queue for on-demand benchmark retrieval
+# =============================================================================
+
+class BackgroundFetchQueue:
+    """Thread-safe queue for background CPU benchmark fetches.
+
+    Prevents duplicate fetches and provides status tracking.
+    """
+
+    def __init__(self):
+        self._pending: set[str] = set()
+        self._lock = threading.Lock()
+
+    def is_pending(self, cpu_name: str) -> bool:
+        """Check if a fetch is already pending for this CPU."""
+        with self._lock:
+            return cpu_name in self._pending
+
+    def add(self, cpu_name: str) -> bool:
+        """Add CPU to pending set. Returns False if already pending."""
+        with self._lock:
+            if cpu_name in self._pending:
+                return False
+            self._pending.add(cpu_name)
+            return True
+
+    def remove(self, cpu_name: str) -> None:
+        """Remove CPU from pending set."""
+        with self._lock:
+            self._pending.discard(cpu_name)
+
+
+_fetch_queue = BackgroundFetchQueue()
+
+
+def queue_background_fetch(cpu_name: str) -> bool:
+    """Queue a background fetch for a CPU benchmark.
+
+    If the CPU is already being fetched, returns False.
+    Otherwise, starts a background thread to fetch the data
+    and returns True.
+
+    When fetch completes, notifies frontend via SSE.
+    """
+    if not _fetch_queue.add(cpu_name):
+        logging.debug("Fetch already pending for: %s", cpu_name)
+        return False
+
+    def _fetch_task():
+        try:
+            result = fetch_and_save_benchmark(cpu_name)
+            if result:
+                # Import here to avoid circular import
+                import my_lib.webapp.event
+                my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.DATA)
+                logging.info("Background fetch completed for: %s", cpu_name)
+        except Exception:
+            logging.exception("Background fetch failed for: %s", cpu_name)
+        finally:
+            _fetch_queue.remove(cpu_name)
+
+    thread = threading.Thread(target=_fetch_task, daemon=True)
+    thread.start()
+    logging.info("Queued background fetch for: %s", cpu_name)
+    return True
+
+
+def queue_background_fetch_batch(cpu_names: list[str]) -> int:
+    """Queue background fetches for multiple CPUs.
+
+    Returns the number of CPUs that were queued (not already pending).
+    """
+    queued = 0
+    for cpu_name in cpu_names:
+        if queue_background_fetch(cpu_name):
+            queued += 1
+    return queued
+
+
+def is_fetch_pending(cpu_name: str) -> bool:
+    """Check if a background fetch is pending for this CPU."""
+    return _fetch_queue.is_pending(cpu_name)
+
 
 MULTITHREAD_URL = "https://www.cpubenchmark.net/multithread/"
 SINGLETHREAD_URL = "https://www.cpubenchmark.net/singleThread.html"
@@ -329,6 +462,9 @@ def save_benchmark(cpu_name: str, multi_thread: int | None, single_thread: int |
         """, (cpu_name, multi_thread, single_thread))
         conn.commit()
 
+    # Invalidate cache when new data is saved
+    _benchmark_cache.invalidate("all_benchmarks")
+
 
 def get_benchmark(cpu_name: str) -> CPUBenchmark | None:
     """Get benchmark data from database."""
@@ -395,9 +531,19 @@ def get_benchmark(cpu_name: str) -> CPUBenchmark | None:
 def get_all_benchmarks() -> dict[str, CPUBenchmark]:
     """Get all benchmark data from database in a single query.
 
+    Uses in-memory cache with 1 hour TTL to avoid repeated DB queries.
+
     Returns:
         Dict mapping CPU name to CPUBenchmark
     """
+    cache_key = "all_benchmarks"
+
+    # Try cache first
+    cached = _benchmark_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    # Fetch from database
     with get_connection(get_cpu_spec_db_path()) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -405,7 +551,7 @@ def get_all_benchmarks() -> dict[str, CPUBenchmark]:
             FROM cpu_benchmark
         """)
 
-        return {
+        result = {
             row[0]: CPUBenchmark(
                 cpu_name=row[0],
                 multi_thread_score=row[1],
@@ -413,6 +559,10 @@ def get_all_benchmarks() -> dict[str, CPUBenchmark]:
             )
             for row in cursor.fetchall()
         }
+
+    # Cache the result
+    _benchmark_cache.set(cache_key, result)
+    return result
 
 
 def _find_benchmark_match(
@@ -474,6 +624,9 @@ def clear_benchmark(cpu_name: str):
         cursor = conn.cursor()
         cursor.execute("DELETE FROM cpu_benchmark WHERE cpu_name = ?", (cpu_name,))
         conn.commit()
+
+    # Invalidate cache when data is deleted
+    _benchmark_cache.invalidate("all_benchmarks")
 
 
 def fetch_and_save_benchmark(cpu_name: str) -> CPUBenchmark | None:
