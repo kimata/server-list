@@ -178,6 +178,10 @@
                 "required": ["host"]
             },
             "description": "NUT master hosts to monitor UPS devices"
+        },
+        "domain": {
+            "type": "string",
+            "description": "Default domain name to append to short hostnames (e.g., green-rabbit.net)"
         }
     },
     "required": [

@@ -1226,18 +1226,51 @@ def _find_vm_esxi_host(hostname: str) -> str | None:
         return row[0] if row else None
 
 
-def _enrich_ups_clients(clients: list[models.UPSClient]) -> list[models.UPSClient]:
+def _apply_domain(hostname: str, domain: str | None) -> str:
+    """Apply domain to a short hostname if needed.
+
+    Args:
+        hostname: The hostname (may be short or FQDN)
+        domain: The domain to append (e.g., "green-rabbit.net")
+
+    Returns:
+        FQDN if domain is provided and hostname is short, otherwise hostname as-is
+    """
+    if not domain:
+        return hostname
+    # If hostname already contains a dot, assume it's already a FQDN
+    if "." in hostname:
+        return hostname
+    return f"{hostname}.{domain}"
+
+
+def _enrich_ups_clients(
+    clients: list[models.UPSClient],
+    domain: str | None = None,
+) -> list[models.UPSClient]:
     """Enrich UPS clients with hostname resolution and VM info.
 
     For each client:
-    1. Resolve IP to hostname if not already set
-    2. Check if hostname is a VM and get its ESXi host
-    3. Set machine_name for linking (ESXi host for VMs, hostname otherwise)
+    1. Replace localhost with UPS master host
+    2. Resolve IP to hostname if not already set
+    3. Check if hostname is a VM and get its ESXi host
+    4. Set machine_name for linking (with domain appended if needed)
+
+    Args:
+        clients: List of UPS clients to enrich
+        domain: Domain to append to short hostnames for linking
     """
     enriched: list[models.UPSClient] = []
 
     for client in clients:
         hostname = client.client_hostname
+        ups_master_host = client.host
+
+        # Handle localhost - replace with UPS master host
+        if hostname == "localhost" or client.client_ip == "127.0.0.1":
+            # Use the short hostname of the UPS master
+            hostname = ups_master_host.split(".")[0]
+
         if not hostname:
             hostname = _resolve_hostname(client.client_ip)
 
@@ -1248,11 +1281,11 @@ def _enrich_ups_clients(clients: list[models.UPSClient]) -> list[models.UPSClien
             # Check if this is a VM
             esxi_host = _find_vm_esxi_host(hostname)
             if esxi_host:
-                # It's a VM - link to the ESXi host
-                machine_name = esxi_host
+                # It's a VM - link to the ESXi host (already FQDN usually)
+                machine_name = _apply_domain(esxi_host, domain)
             else:
-                # It's a physical machine - link to the hostname
-                machine_name = hostname
+                # It's a physical machine - link to the hostname with domain
+                machine_name = _apply_domain(hostname, domain)
 
         enriched.append(models.UPSClient(
             ups_name=client.ups_name,
@@ -1279,6 +1312,9 @@ def collect_ups_data() -> bool:
     ups_configs = cfg.get_list("ups")
     if not ups_configs:
         return False
+
+    # Get domain for hostname resolution
+    domain = cfg.get("domain")
 
     updated = False
     all_ups_info: list[models.UPSInfo] = []
@@ -1307,8 +1343,8 @@ def collect_ups_data() -> bool:
     if all_ups_info:
         save_ups_info(all_ups_info)
     if all_clients:
-        # Enrich clients with hostname resolution and VM info
-        enriched_clients = _enrich_ups_clients(all_clients)
+        # Enrich clients with hostname resolution, VM info, and domain
+        enriched_clients = _enrich_ups_clients(all_clients, domain)
         save_ups_clients(enriched_clients)
 
     return updated
