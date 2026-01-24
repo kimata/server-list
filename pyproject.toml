@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 
 dependencies = [
-    "my-lib @ git+https://github.com/kimata/my-py-lib@617257a6f37bed41b9b3ad650983cb404a1ed115",
+    "my-lib @ git+https://github.com/kimata/my-py-lib@c1c1a7dea26a950e442f3dabd53033f47dd2fd40",
     "flask>=3.1.2",
     "flask-cors>=6.0.2",
     "requests>=2.32.5",
@@ -23,6 +23,10 @@ dependencies = [
 [project.scripts]
 server-list = "server_list.__main__:main"
 server-list-webui = "server_list.cli.webui:main"
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
@@ -46,8 +50,28 @@ dev = [
     "types-requests>=2.32.4",
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/server_list"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
 [tool.uv]
 default-groups = ["dev"]
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "semver"
+format = "{base}"
+
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -111,33 +135,6 @@ module = [
 ignore_missing_imports = true
 follow_imports = "skip"
 
-[tool.ty]
-[tool.ty.rules]
-
-[tool.uv-dynamic-versioning]
-vcs = "git"
-style = "semver"
-format = "{base}"
-
-[build-system]
-requires = ["hatchling", "uv-dynamic-versioning"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/server_list"]
-
-[tool.hatch.metadata]
-allow-direct-references = true
-
-[tool.hatch.version]
-source = "uv-dynamic-versioning"
-
-[tool.ruff]
-line-length = 110
-
-[tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP"]
-
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
@@ -149,3 +146,6 @@ reportOperatorIssue = false
 reportIndexIssue = false
 reportGeneralTypeIssues = false
 reportAttributeAccessIssue = false
+
+[tool.ty]
+[tool.ty.rules]
