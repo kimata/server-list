@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 
 dependencies = [
-    "my-lib @ git+https://github.com/kimata/my-py-lib@8688ffae66fb0629415e117455e79c0c692f37fe",
+    "my-lib @ git+https://github.com/kimata/my-py-lib@6844351c3a118b0d728acd0d7121fb5ec82f6e47",
     "flask>=3.1.2",
     "flask-cors>=6.0.2",
     "requests>=2.32.5",
