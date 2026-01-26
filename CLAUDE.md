@@ -973,6 +973,13 @@ git add しないこと。プログラムが動作するのに必要なデータ
 
 ## 開発ワークフロー規約
 
+### リポジトリ構成
+
+- **プライマリリポジトリ**: GitLab (`gitlab.green-rabbit.net`)
+- **ミラーリポジトリ**: GitHub (`github.com/kimata/server-list`)
+
+GitLab にプッシュすると、自動的に GitHub にミラーリングされます。GitHub への直接プッシュは不要です。
+
 ### タグ作成時の注意
 
 タグを作成する際は、**必ず CHANGELOG.md を更新すること**:
