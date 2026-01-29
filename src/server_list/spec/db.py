@@ -95,7 +95,7 @@ def init_schema(db_path: Path, schema_sql: str) -> None:
         schema_sql: SQL script to execute for schema creation
     """
     with get_connection(db_path) as conn:
-        conn.executescript(schema_sql)
+        my_lib.sqlite_util.exec_schema(conn, schema_sql)
         conn.commit()
 
 
@@ -107,6 +107,6 @@ def init_schema_from_file(db_path: Path, schema_path: Path) -> None:
         db_path: Path to the database file
         schema_path: Path to the schema SQL file
     """
-    with schema_path.open(encoding="utf-8") as f:
-        schema_sql = f.read()
-    init_schema(db_path, schema_sql)
+    with get_connection(db_path) as conn:
+        my_lib.sqlite_util.exec_schema_from_file(conn, schema_path)
+        conn.commit()

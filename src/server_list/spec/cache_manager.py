@@ -7,6 +7,7 @@ Updates data in background and notifies via SSE.
 
 import json
 import logging
+import pathlib
 import sqlite3
 import threading
 from datetime import datetime
@@ -22,6 +23,8 @@ UPDATE_INTERVAL_SEC = 300  # 5 minutes
 _update_thread: threading.Thread | None = None
 _should_stop = threading.Event()
 _db_lock = threading.Lock()
+_watch_thread: threading.Thread | None = None
+_watch_stop_event: threading.Event | None = None
 
 
 CACHE_SCHEMA = """
@@ -84,6 +87,18 @@ def _set_cache(key: str, value: dict):
             conn.commit()
     except sqlite3.Error as e:
         logging.warning("Failed to set cache for %s: %s", key, e)
+
+
+def _get_cache_state(db_path: str | pathlib.Path) -> str | None:
+    """キャッシュ DB の状態を取得する."""
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.execute("SELECT MAX(updated_at) FROM cache")
+            row = cursor.fetchone()
+            return row[0] if row else None
+    except sqlite3.Error:
+        logging.exception("Failed to get cache state")
+        return None
 
 
 def load_config_from_file() -> dict | None:
@@ -149,8 +164,7 @@ def update_all_caches():
             logging.info("Config cache updated")
 
     if updated:
-        my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.DATA)
-        logging.info("Cache updated, clients notified")
+        logging.info("Cache updated")
 
 
 def _update_worker():
@@ -168,14 +182,19 @@ def _update_worker():
 
 def start_cache_worker():
     """Start the background cache update worker."""
-    global _update_thread
+    global _update_thread, _watch_thread, _watch_stop_event
 
     init_db()
 
     # Initial cache population
-    config = load_config_from_file()
-    if config:
-        _set_cache("config", config)
+    _watch_stop_event, _watch_thread = my_lib.webapp.event.start_db_state_watcher(
+        server_list.spec.db_config.get_cache_db_path(),
+        _get_cache_state,
+        my_lib.webapp.event.EVENT_TYPE.CONTENT,
+        notify_on_first=True,
+    )
+
+    update_all_caches()
 
     if _update_thread and _update_thread.is_alive():
         return
@@ -187,6 +206,12 @@ def start_cache_worker():
 
 def stop_cache_worker():
     """Stop the background cache update worker."""
+    global _watch_thread, _watch_stop_event
     _should_stop.set()
     if _update_thread:
         _update_thread.join(timeout=5)
+
+    if _watch_thread is not None and _watch_stop_event is not None:
+        my_lib.webapp.event.stop_db_state_watcher(_watch_stop_event, _watch_thread)
+        _watch_thread = None
+        _watch_stop_event = None
