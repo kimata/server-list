@@ -165,6 +165,7 @@ def update_all_caches():
 
     if updated:
         logging.info("Cache updated")
+        my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.CONTENT)
 
 
 def _update_worker():
