@@ -1785,7 +1785,7 @@ def collect_all_data():
         updated = True
 
     if updated:
-        my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.DATA)
+        my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.CONTENT)
         logging.info("Data collection complete, clients notified")
 
 
@@ -1818,11 +1818,11 @@ def collect_host_data(host: str) -> bool:
     if not si:
         update_collection_status(host, "connection_failed")
         save_host_info_failed(host)
-        my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.DATA)
+        my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.CONTENT)
         return False
 
     success = _collect_esxi_host_data(si, host)
-    my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.DATA)
+    my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.CONTENT)
     logging.info("Data collection complete for %s, clients notified", host)
     return success
 
