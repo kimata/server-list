@@ -118,7 +118,7 @@ def queue_background_fetch(cpu_name: str) -> bool:
             if result:
                 # Import here to avoid circular import
                 import my_lib.webapp.event
-                my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.DATA)
+                my_lib.webapp.event.notify_event(my_lib.webapp.event.EVENT_TYPE.CONTENT)
                 logging.info("Background fetch completed for: %s", cpu_name)
         except Exception:
             logging.exception("Background fetch failed for: %s", cpu_name)
