@@ -1,4 +1,4 @@
-FROM ubuntu:24.04@sha256:7a398144c5a2fa7dbd9362e460779dc6659bd9b19df50f724250c62ca7812eb3
+FROM ubuntu:24.04@sha256:4fbb8e6a8395de5a7550b33509421a2bafbc0aab6c06ba2cef9ebffbc7092d90
 
 RUN --mount=type=cache,target=/var/lib/apt,sharing=locked \
     --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -34,14 +34,19 @@ RUN --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     --mount=type=bind,source=.python-version,target=.python-version \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=README.md,target=README.md \
-    --mount=type=bind,source=src,target=src \
     --mount=type=cache,target=/home/ubuntu/.cache/uv,uid=1000,gid=1000 \
-    uv sync --no-editable --no-group dev
+    uv sync --locked --no-install-project --no-editable --no-group dev
 
 ARG IMAGE_BUILD_DATE
 ENV IMAGE_BUILD_DATE=${IMAGE_BUILD_DATE}
 
 COPY --chown=ubuntu:ubuntu . .
+
+RUN --mount=type=cache,target=/home/ubuntu/.cache/uv,uid=1000,gid=1000 \
+    uv sync --locked --no-editable --no-group dev
+
+# NOTE: プロジェクトはビルド時にインストール済みのため、実行時の再同期を抑止する
+ENV UV_NO_SYNC=1
 
 RUN mkdir -p data
 
