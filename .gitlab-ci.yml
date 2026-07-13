@@ -4,6 +4,7 @@ variables:
     UV_LINK_MODE: copy
     UV_CACHE_DIR: .uv-cache
     PYRIGHT_PYTHON_FORCE_VERSION: latest
+    UV_HTTP_TIMEOUT: "120"
 
     UV_EXTRA_INDEX_URL: "http://proxy:3141/simple/"
     UV_INSECURE_HOST: "proxy"
@@ -34,7 +35,7 @@ build-react:
 
     needs: []
 
-    image: node:24.13@sha256:b2b2184ba9b78c022e1d6a7924ec6fba577adf28f15c9d9c457730cc4ad3807a
+    image: node:24.17@sha256:733e1c06ada118ed9f6133a31aa1290be6929664026fb28821500437c61f2c6f
 
     before_script: []
 
@@ -62,7 +63,7 @@ build-image:
         - build-react
 
     variables:
-        BUILDER: builder
+        BUILDER: builder-${CI_PROJECT_NAME}
 
     script:
         - 'echo "Building: ${CI_REGISTRY_IMAGE}:${TAG}"'
@@ -122,8 +123,9 @@ test-pytest:
         - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.green-rabbit.net/kimata/panel-config.git
         - mv panel-config/server-list.yaml config.yaml
         - mv panel-config/server-list-secret.yaml secret.yaml
-
         - uv run pytest
+
+    coverage: '/TOTAL.*\s+(\d+%)/'
 
     cache:
         - key:
@@ -159,12 +161,8 @@ test-webui:
 
         - uv sync --locked --no-editable
 
-        # コンテナを起動
-        - >
-            docker run --rm --detach=true --tty=true
-            --name ${CI_JOB_NAME}-${CI_JOB_ID} --label job=${CI_JOB_NAME}
-            --publish :5000
-            ${CI_REGISTRY_IMAGE}:${TAG} server-list-webui
+        - docker run --rm --detach=true --tty=true --name ${CI_JOB_NAME}-${CI_JOB_ID} --label job=${CI_JOB_NAME} --publish :5000 ${CI_REGISTRY_IMAGE}:${TAG} server-list-webui
+
 
         - uv run playwright install --with-deps chromium
 
@@ -258,8 +256,8 @@ deploy:
         - 'echo "Deploying image: $IMAGE"'
 
         - kubectl config get-contexts
-        - kubectl config use-context kimata/server-list:pod-rollout
 
+        - kubectl config use-context kimata/server-list:pod-rollout
         - kubectl -n panel set image deployment/server-list server-list=${IMAGE}
         - kubectl -n panel rollout status deployment/server-list --timeout=300s
 
